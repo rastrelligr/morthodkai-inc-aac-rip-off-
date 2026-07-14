@@ -2,17 +2,18 @@
 
 ```mermaid
 flowchart TD
-    subgraph SOURCES["แหล่ง Asset ฟรี"]
-        K1[Kenney.nl / OpenGameArt / itch.io] --> C1[docs/02_Assets/_candidates/]
-        K2[Freesound.org] --> C1
-        K3[Google Fonts / Fontesk] --> C1
+    subgraph SOURCES["แหล่ง Asset ฟรี + ทำเอง"]
+        K1[itch.io] --> C1[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/]
+        K2[Freesound.org/ youtube] --> C1
+        K3[www.1001fonts.com / Fontesk] --> C1
+	K4[aseprite] --> C1
     end
 
     subgraph REPO["Git Repository (Staging)"]
-        C1 --> R1[docs/02_Assets/_candidates/sprites]
-        C1 --> R2[docs/02_Assets/_candidates/sfx]
-        C1 --> R3[docs/02_Assets/_candidates/music]
-        C1 --> R4[docs/02_Assets/_candidates/fonts]
+        C1 --> R1[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/sprites/]
+        C1 --> R2[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/soundeffect/]
+        C1 --> R3[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/BGM/]
+        C1 --> R4[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/fonts/]
     end
 
     subgraph PIPELINE["MonoGame Content Pipeline (Lab ถัดไป)"]
