@@ -40,9 +40,9 @@ date: [วันที่]
 
 ## 📁 ใครดูแลส่วนไหน
 
-| คนที่ | รับผิดชอบ  | โฟลเดอร์ staging                                 |
-| ---------- | ------------------- | -------------------------------------------------------- |
-| 1          | Sprites / Textures  | MTGgameprojectxD/morthodkai-inc-aac-rip-off-/sprites/    |
-| 2          | Sound Effects (SFX) | MTGgameprojectxD/morthodkai-inc-aac-rip-off-/soundeffect |
-| 3          | Music / BGM         | MTGgameprojectxD/morthodkai-inc-aac-rip-off-/BGM         |
-| 4          | Fonts + Data        | MTGgameprojectxD/morthodkai-inc-aac-rip-off-/fonts       |
+| คนที่ | รับผิดชอบ  | โฟลเดอร์ staging                     |
+| ---------- | ------------------- | -------------------------------------------- |
+| 1          | Sprites / Textures  | game\docs\02_Assests\_candidates\sprites     |
+| 2          | Sound Effects (SFX) | game\docs\02_Assests\_candidates\soundeffect |
+| 3          | Music / BGM         | game\docs\02_Assests\_candidates\BGM         |
+| 4          | Fonts + Data        | -game\docs\02_Assests\_candidates\fonts      |

@@ -10,10 +10,10 @@ flowchart TD
     end
 
     subgraph REPO["Git Repository (Staging)"]
-        C1 --> R1[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/sprites/]
-        C1 --> R2[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/soundeffect/]
-        C1 --> R3[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/BGM/]
-        C1 --> R4[MTGgameprojectxD/morthodkai-inc-aac-rip-off-/fonts/]
+        C1 --> R1[game\docs\02_Assests\_candidates\sprites]
+        C1 --> R2[game\docs\02_Assests\_candidates\soundeffect]
+        C1 --> R3[game\docs\02_Assests\_candidates\BGM]
+        C1 --> R4[game\docs\02_Assests\_candidates\fonts]
     end
 
     subgraph PIPELINE["MonoGame Content Pipeline (Lab ถัดไป)"]
