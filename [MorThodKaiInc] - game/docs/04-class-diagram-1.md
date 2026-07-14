@@ -1,7 +1,7 @@
 ---
 type: gdd-class-diagram
 version: 0.1
-date: [วันที่]
+date: [7/14/2026]
 ---
 # Class Diagram — [Jo's Game]
 
