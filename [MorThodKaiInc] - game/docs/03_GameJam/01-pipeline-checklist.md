@@ -10,27 +10,27 @@ team: [ชื่อทีม]
 
 ## Must-Have (ต้องมีก่อน Hour 24 — Playable Build)
 
-| Module (ตาม MonoGame Game Loop)             | หน้าที่                                                            | สถานะ     | ผู้รับผิดชอบ |
-| ---------------------------------------------- | ------------------------------------------------------------------------- | -------------- | ------------------------ |
-| `GameStateManager`                           | สลับ state (Menu / Playing / Pause / GameOver)                        | 🔲 Not Started | [ชื่อ]               |
-| `InputManager`                               | รับ input keyboard/gamepad แบบรวมศูนย์                      | 🔲 Not Started | [ชื่อ]               |
-| Core `Update()` logic ของกลไกหลัก | logic ของ core mechanic 1 อย่างที่เป็นหัวใจเกม     | 🔲 Not Started | [ชื่อ]               |
-| Collision / interaction พื้นฐาน         | ตรวจชน/ตรวจ trigger ระหว่าง entity                       | 🔲 Not Started | [ชื่อ]               |
-| `SpriteBatch` render + camera/viewport       | วาดผ่าน `GraphicsDevice.Viewport` (ห้าม hardcode resolution) | 🔲 Not Started | [ชื่อ]               |
-| Win / Lose condition                           | เงื่อนไขจบเกม/จบด่าน                                   | 🔲 Not Started | [ชื่อ]               |
-| Content pipeline (MGCB)                        | โหลด asset ผ่าน `Content.Load<T>()` เท่านั้น            | 🔲 Not Started | [ชื่อ]               |
-| [module เพิ่มเติมของเกมนี้]  |                                                                           | 🔲 Not Started | [ชื่อ]               |
+| Module                                         | หน้าที่                                                                    | สถานะ     | ผู้รับผิดชอบ |
+| ---------------------------------------------- | --------------------------------------------------------------------------------- | -------------- | ------------------------ |
+| `GameStateManager`                           | สลับ state (Menu / Playing / Pause / GameOver)                                | 🔲 Not Started | [Peachy]                 |
+| `InputManager`                               | รับ input keyboard/gamepad แบบรวมศูนย์                              | 🔲 Not Started | [Peachy]                 |
+| Core `Update()` logic ของกลไกหลัก | logic ของ core mechanic 1 อย่างที่เป็นหัวใจเกม             | 🔲 Not Started | [Peachy]                 |
+| Collision / interaction พื้นฐาน         | ตรวจชน/ตรวจ trigger ระหว่าง entity/ Interaction ทีจำเป็น | 🔲 Not Started | [Peachy]                 |
+| render + camera/viewport                       | วาดผ่าน `GraphicsDevice.Viewport` (ห้าม hardcode resolution)         | 🔲 Not Started | [Peachy]                 |
+| Win / Lose condition                           | เงื่อนไขจบเกม/จบด่าน                                           | 🔲 Not Started | [Peachy]                 |
+| Basic Enemy AI                                 | เขียนเบสิก AI ให้ spawn/despawn และล่าผู้เล่นได้    | 🔲 Not Started | [Peachy]                 |
+| Model & Texturing                              | โมเดลต้องมีเท็กเจอร์                                          | 🔲 Not Started | [fishe]                  |
 
 ## Nice-to-Have (ทำถ้าเหลือเวลา — Hour 24–34)
 
 | Module                                | หน้าที่                                                                                 | สถานะ     | ผู้รับผิดชอบ |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------- | ------------------------ |
-| `AudioManager` (SFX พื้นฐาน) | เสียงตอบสนอง action หลัก (free source)                                         | 🔲 Not Started | [ชื่อ]               |
+| `AudioManager` (SFX พื้นฐาน) | เสียงตอบสนอง action หลัก (free source)                                         | 🔲 Not Started | [Peachy]                 |
 | UI/HUD (score, timer)                 | แสดงสถานะระหว่างเล่น                                                       | 🔲 Not Started | [fishe]                  |
-| Music / เพลงประกอบ          | เพลงใส่ไว้เพิ่มประสบการณ์ในการเล่น โดยใช้ free source | 🔲 Not Started | [ชื่อ]               |
+| Music / เพลงประกอบ          | เพลงใส่ไว้เพิ่มประสบการณ์ในการเล่น โดยใช้ free source | 🔲 Not Started | [TopTap]                 |
 | Itch.io page                          | เป็นเพจโปรโมทเกม แสดง screenshot ต่างๆ และใส่ file              | 🔲 Not Started | [fishe]                  |
 | Sprite Animation                      | หนุน game art เกมดูมีชีวิตชีวาขึ้น                                     | 🔲 Not Started | [fishe]                  |
-| ฟหกด่าหสววไกฟ            | หมา                                                                                         |                | ตูด                   |
+| VFX & Postprocessing                  | Spicy effect pew pew                                                                           | 🔲 Not Started | [onyx]                   |
 
 ## Cut-List (ตัดทิ้งก่อนถ้าเวลาไม่พอ — ห้ามเริ่มก่อน Must-Have เสร็จ)
 
