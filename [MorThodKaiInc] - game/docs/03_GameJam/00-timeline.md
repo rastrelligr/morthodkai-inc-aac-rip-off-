@@ -1,8 +1,8 @@
 ---
 type: jam-timeline
 version: 0.1
-date: [วันที่]
-team: [ชื่อทีม]
+date: [7/21/2026]
+team: [MTG]
 ---
 # 48-Hour Timeline — [ชื่อทีม]
 

@@ -1,8 +1,8 @@
 ---
 type: jam-pipeline
 version: 0.1
-date: [วันที่]
-team: [ชื่อทีม]
+date: [7/21/2026]
+team: [MTG]
 ---
 # Pipeline Function Checklist — [ชื่อเกม]
 
@@ -30,7 +30,7 @@ team: [ชื่อทีม]
 | Music / เพลงประกอบ          | เพลงใส่ไว้เพิ่มประสบการณ์ในการเล่น โดยใช้ free source | 🔲 Not Started | [TopTap]                 |
 | Itch.io page                          | เป็นเพจโปรโมทเกม แสดง screenshot ต่างๆ และใส่ file              | 🔲 Not Started | [fishe]                  |
 | Complex Animation                    | หนุน game art เกมดูมีชีวิตชีวาขึ้น                                     | 🔲 Not Started | [fishe]                  |
-| VFX & Postprocessing                  | Spicy effect pew pew                                                                           | 🔲 Not Started | [peachza101]             |
+| VFX & Postprocessing                  | Spicy effect pew pew                                                                           | 🔲 Not Started | [Peachy]                 |
 
 ## Cut-List (ตัดทิ้งก่อนถ้าเวลาไม่พอ — ห้ามเริ่มก่อน Must-Have เสร็จ)
 
