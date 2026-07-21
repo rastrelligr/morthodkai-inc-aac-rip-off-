@@ -29,8 +29,8 @@ team: [ชื่อทีม]
 | UI/HUD (score, timer)                 | แสดงสถานะระหว่างเล่น                                                       | 🔲 Not Started | [fishe]                  |
 | Music / เพลงประกอบ          | เพลงใส่ไว้เพิ่มประสบการณ์ในการเล่น โดยใช้ free source | 🔲 Not Started | [TopTap]                 |
 | Itch.io page                          | เป็นเพจโปรโมทเกม แสดง screenshot ต่างๆ และใส่ file              | 🔲 Not Started | [fishe]                  |
-| Sprite Animation                      | หนุน game art เกมดูมีชีวิตชีวาขึ้น                                     | 🔲 Not Started | [fishe]                  |
-| VFX & Postprocessing                  | Spicy effect pew pew                                                                           | 🔲 Not Started | [onyx]                   |
+| Complex Animation                    | หนุน game art เกมดูมีชีวิตชีวาขึ้น                                     | 🔲 Not Started | [fishe]                  |
+| VFX & Postprocessing                  | Spicy effect pew pew                                                                           | 🔲 Not Started | [peachza101]             |
 
 ## Cut-List (ตัดทิ้งก่อนถ้าเวลาไม่พอ — ห้ามเริ่มก่อน Must-Have เสร็จ)
 
