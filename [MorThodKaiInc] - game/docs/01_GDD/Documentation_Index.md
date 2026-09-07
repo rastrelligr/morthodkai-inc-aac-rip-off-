@@ -18,13 +18,15 @@ date: [วันที่]
 
 **Asset:** ดูตารางเต็มใน [00-concept.md](00-concept.md#asset-naming-convention)
 
-| Prefix   | ประเภท     |
-| -------- | ---------------- |
-| `spr_` | Sprite / Texture |
-| `sfx_` | Sound Effect     |
-| `bgm_` | Background Music |
-| `fnt_` | Font             |
-| `dat_` | Data / Config    |
+| Prefix        | ประเภท         |
+| ------------- | -------------------- |
+| `sprsheet_` | Sprite / Texture     |
+| `sfx_`      | Sound Effect         |
+| `bgm_`      | Background Music     |
+| `fnt_`      | Font                 |
+| `dat_`      | Data / Config        |
+| `crawlMAP_` | dungeon crawling map |
+|               |                      |
 
 **เอกสาร:** ไฟล์ใน `docs/01_GDD/` เรียงลำดับด้วย prefix ตัวเลข 2 หลัก (`00-`, `01-`, ...) ตามลำดับที่สร้างขึ้นในแต่ละ Lab — ห้ามสลับเลขไฟล์ที่มีอยู่แล้ว เพิ่มไฟล์ใหม่ให้ต่อเลขถัดไป
 
