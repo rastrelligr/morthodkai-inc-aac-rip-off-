@@ -2,7 +2,7 @@
 
 <!-- ภาพรวมว่า Story ไหนไปอยู่ Sprint ไหนตลอด 4 Sprint — ไม่ต้องระบุคนรับผิดชอบ/Status ที่นี่ ส่วนนั้นอยู่ใน sprint-plan-[NN].md ของ Sprint ที่กำลังทำ -->
 
-# Sprint Backlog
+# Sprint Backlog fix
 
 **Version:** 1.0 | **Last Updated:** 2026-09-01
 

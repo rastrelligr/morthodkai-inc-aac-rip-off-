@@ -3,7 +3,7 @@ type: gdd-mechanics
 version: 0.1
 date: [7/14/2026]
 ---
-# Mechanic Design — [Player Actions]
+# Mechanic Design — [Player Actions] *JO*
 
 ## State Diagram
 
