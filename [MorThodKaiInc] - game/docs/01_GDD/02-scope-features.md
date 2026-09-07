@@ -3,7 +3,7 @@ type: gdd-scope
 version: 0.1
 date: [7/7/2569]
 ---
-# [Jo's game] — Scope & Feature List
+# [Jo's game] — Scope & Feature List JO
 
 ## Unique Selling Point (USP)
 

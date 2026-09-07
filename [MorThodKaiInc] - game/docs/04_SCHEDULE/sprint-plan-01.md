@@ -6,7 +6,7 @@
 
 <!-- Sprint 2-4 ในแลปถัดไป: คัดลอกไฟล์นี้ทั้งไฟล์ไปสร้าง sprint-plan-02.md, sprint-plan-03.md, sprint-plan-04.md ตามลำดับ -->
 
-# Sprint [1] Plan
+# Sprint [1] Plan fix
 
 **Sprint Goal:** [ทำ Core Mechanic ให้เล่นได้]
 **ระยะเวลา:** [2026-09-01] — [2026-09-14]

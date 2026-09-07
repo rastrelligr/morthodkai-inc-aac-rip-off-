@@ -3,7 +3,7 @@ type: gdd-core-loop
 version: 0.1
 date: [7/7/2026]
 ---
-# [Jo's Game] — Core Loop & Gameplay
+# [Jo's Game] — Core Loop & Gameplay ?
 
 ## Core Loop
 
