@@ -3,48 +3,38 @@ type: gdd-mechanics
 version: 0.1
 date: [7/14/2026]
 ---
-# Mechanic Design — [Player Actions] *JO*
+# Mechanic Design — [Player Actions]
 
 ## State Diagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
+    VesselAction --> Move : เลือก Move
+    VesselAction --> Defend : เลือก Defend
 
-    Idle --> Attack : เลือก Attack
-    Idle --> Defend : เลือก Defend
-    Idle --> Item : เลือก Item
-    Idle --> Taunt : เลือก Taunt
+    Move --> Resolve : เคลื่อนที่เสร็จ
+    Defend --> Resolve : ตั้งรับเสร็จ
+    Attack --> Resolve : โจมตีเสร็จ
 
-    Attack --> Roll : เริ่มการโจมตี
+    Resolve --> EnemyTurn : ผู้เล่นทั้งสอง Action เสร็จ
 
-    state Roll {
-        [*] --> Predict
-        Predict --> DiceRoll : ทำนายผล
-        DiceRoll --> Calculate : ทอยลูกเต๋า
-        Calculate --> [*] : คำนวณ Modifier
-    }
+    EnemyTurn --> Waiting : Enemy Action เสร็จ
+    [*] --> Waiting
 
-    Roll --> AttackAnimation : ใช้ผล Modifier
+    Waiting --> WeaponAction : Weapon เลือก Action
 
-    AttackAnimation --> Resolve : Animation จบ
-
-    Resolve --> Idle : จบ Turn
-
-    Defend --> Idle : Action เสร็จสิ้น
-    Item --> Idle : ใช้ไอเทมเสร็จ
-    Taunt --> Idle : Action เสร็จสิ้น
+    WeaponAction --> Attack : เลือก Attack
 ```
 
 ## Rules
 
 | State            | เข้าเงื่อนไข                  | ออกเงื่อนไข         | Note                                                                                                                     |
 | ---------------- | ----------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Idle             | เริ่มเกม / เริ่มเทิร์น | เลือก Action              | รอผู้เล่นเลือกคำสั่ง                                                                                 |
-| Attack           | ผู้เล่นเลือก Attack           | เริ่ม Roll                | เตรียมการโจมตี                                                                                             |
-| Roll             | เริ่มการโจมตี                | คำนวณ Modifier เสร็จ | ผู้เล่นทำนายผลก่อน ระบบทอยลูกเต๋า และสร้าง Modifier สำหรับการโจมตี |
-| Attack Animation | ได้ผลจาก Roll แล้ว            | Animation จบ                 | เล่น Animation การโจมตีตามค่า Modifier                                                                 |
-| Resolve          | Animation จบ                            | กลับ Idle                  | คำนวณ Damage และใช้ผลของ Modifier                                                                        |
-| Defend           | ผู้เล่นเลือก Defend           | Action เสร็จ              | -                                                                                                                        |
-| Item             | ผู้เล่นเลือก Item             | ใช้ไอเทมเสร็จ     | -                                                                                                                        |
-| Taunt            | ผู้เล่นเลือก Taunt            | Action เสร็จ              | -                                                                                                                        |
+| Waiting             | เริ่มเทิร์น | ผู้เล่นเลือก Action              | รอผู้เล่นเลือกคำสั่ง                                                                                 |
+| Vessel Action           | Vessel เลือก Action           | เลือก Move / Defend                | Vessel เป็นผู้ควบคุมตำแหน่งและการป้องกัน                                                                                             |
+| Weapon Action             | Weapon เลือก Action                | เลือก Attack | Weapon เป็นผู้ควบคุมการโจมตี |
+| Move | Vessel เลือก Move            | เคลื่อนที่เสร็จ                 | Vessel และ Weapon ย้ายไปยังช่องที่เลือกด้วยกัน                                                                 |
+| Defend          | Vessel เลือก Defend                            | Action เสร็จ                  | คำนวณ Damage และใช้ผลของ Modifier                                                                        |
+| Attack           | Weapon เลือก Attack           | โจมตีเสร็จ              | Weapon โจมตี Enemy จากตำแหน่งปัจจุบัน                                                                                                                        |
+| Resolve             | Action ของผู้เล่นเสร็จ             | ทั้งสอง Action เสร็จ     | ตรวจสอบผลของ Move, Defend และ Attack                                                                                                                        |
+| Enemy Turn            | ผู้เล่นทั้งสอง Action เสร็จ            | Enemy Action เสร็จ              | Enemy ทำการโจมตีหรือเปลี่ยนสถานะ                                                                                                                        |
