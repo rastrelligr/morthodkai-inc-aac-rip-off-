@@ -18,27 +18,28 @@ date: [วันที่]
 
 **Asset:** ดูตารางเต็มใน [00-concept.md](00-concept.md#asset-naming-convention)
 
-| Prefix        | ประเภท         |
-| ------------- | -------------------- |
-| `sprsheet_` | Sprite / Texture     |
-| `sfx_`      | Sound Effect         |
-| `bgm_`      | Background Music     |
-| `fnt_`      | Font                 |
-| `dat_`      | Data / Config        |
-| `crawlMAP_` | dungeon crawling map |
-|               |                      |
+| Prefix        | ประเภท     |
+| ------------- | ---------------- |
+| `sprsheet_` | Sprite / Texture |
+| `sfx_`      | Sound Effect     |
+| `bgm_`      | Background Music |
+| `fnt_`      | Font             |
+| `dat_`      | Data / Config    |
+| `model_`    | 3d assest        |
+| UI            |                  |
 
 **เอกสาร:** ไฟล์ใน `docs/01_GDD/` เรียงลำดับด้วย prefix ตัวเลข 2 หลัก (`00-`, `01-`, ...) ตามลำดับที่สร้างขึ้นในแต่ละ Lab — ห้ามสลับเลขไฟล์ที่มีอยู่แล้ว เพิ่มไฟล์ใหม่ให้ต่อเลขถัดไป
 
 ## Asset Naming Convention
 
-| Prefix   | ประเภท     | ตัวอย่าง        |
-| -------- | ---------------- | ----------------------- |
-| `spr_` | Sprite / Texture | `spr_player_idle.png` |
-| `sfx_` | Sound Effect     | `sfx_jump.wav`        |
-| `bgm_` | Background Music | `bgm_stage_01.mp3`    |
-| `fnt_` | Font             | `fnt_ui_main.ttf`     |
-| `dat_` | Data / Config    | `dat_enemies.json`    |
+| Prefix        | ประเภท     | ตัวอย่าง           |
+| ------------- | ---------------- | -------------------------- |
+| `sprsheet_` | Sprite / Texture | `spr_player_idle.png`    |
+| `sfx_`      | Sound Effect     | `sfx_jump.wav`           |
+| `bgm_`      | Background Music | `bgm_stage_01.mp3`       |
+| `fnt_`      | Font             | `fnt_ui_main.ttf`        |
+| `dat_`      | Data / Config    | `dat_enemies.json`       |
+| `model_`    | 3d assest        | `model_dungeon_wall.png` |
 
 ## 📁 ใครดูแลส่วนไหน
 
