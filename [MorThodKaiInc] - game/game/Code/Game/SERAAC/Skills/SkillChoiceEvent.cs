@@ -1,4 +1,4 @@
-namespace SoulLinkGame.Data.Skills
+namespace SERAAC.Data.Skills
 {
     public class SkillChoiceEvent
     {
