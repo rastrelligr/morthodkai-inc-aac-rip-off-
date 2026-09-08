@@ -31,4 +31,4 @@ macOS มีปัญหาเรื่อง Font Rendering |
 ## Related Documents
 
 - [[docs/agile/sprint-plan-01|Sprint 1 Plan]]
-- [[docs/agile/02-sprint-backlog|Sprint Backlog]]
+- [[docs/agile/02-sprint-backlog|Sprint Backlog]] g
