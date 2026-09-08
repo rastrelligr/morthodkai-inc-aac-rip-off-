@@ -28,6 +28,7 @@ gantt
     Sprint 4 :s4, after s3, 14d
 ```
 
+
 > ปรับวันที่ให้ตรงกับวันที่ทีมเริ่มลงมือทำจริง (ถ้าไม่ใช่วันแลปนี้)
 
 ## Sprint 1 (WIP)
@@ -38,6 +39,7 @@ gantt
 | 2 | As a player, I want to multiple options, so that I can choose my own path                     | Must Have    | 8             |
 | 3 | As a player, I want to defeat enemies, so that I can get loots and level up                   | Must Have    | 4             |
 | 4 | As an Artist, I want to create compact spritesheet, so that I can flexibly change the texture | Nice to Have | 3             |
+| 5 | As a designer i want level design so 3D can layout map for code generate :3                   | Must Have    | 10            |
 
 ## Sprint 2 (TBA)
 

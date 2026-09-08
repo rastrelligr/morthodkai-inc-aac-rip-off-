@@ -13,6 +13,7 @@
 | 2 | As a player, I want to level up, so that I can be stronger                  | Level up from exp point when defeating enemies            | 2             | 1      |
 | 3 | As a player, I want to multiple options, so that I can choose my own path   | Freedom of choices (eg. choosing class, next story path)) | 8             | 1      |
 | 4 | As a player, I want to defeat enemies, so that I can get loots and level up | Defeating enemies is rewarding                            | 4             | 1      |
+| 5 | As a designer i want level design so 3D can layout map for code generate   | Level design for Map generation                           | 10            | 1      |
 
 ## Should Have
 
