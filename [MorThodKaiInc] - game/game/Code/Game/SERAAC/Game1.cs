@@ -40,7 +40,7 @@ namespace SERAAC
         private double _moveDuration = 0.18; // seconds per tile
         private string[] _actions = new[] { "Attack", "Item", "Guard" };
         private int _actionIndex = 0;
-        private string[] enemyNames = new[] { "Goblin", "Fih", "Slime" };
+        private string[] enemyNames = new[] { "Goblin", "Fih", "Slime","Jo" };
         private int enemyCount = 0;
 
         // Minigame and UI managers
