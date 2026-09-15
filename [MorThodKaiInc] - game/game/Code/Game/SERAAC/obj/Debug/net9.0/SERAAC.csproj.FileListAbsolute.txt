@@ -45,3 +45,7 @@ C:\Users\Mario\source\repos\rastrelligr\morthodkai-inc-aac-rip-off-\[MorThodKaiI
 C:\Users\Mario\source\repos\rastrelligr\morthodkai-inc-aac-rip-off-\[MorThodKaiInc] - game\game\Code\Game\SERAAC\bin\Debug\net9.0\Content\placeholder_player.xnb
 C:\Users\Mario\source\repos\rastrelligr\morthodkai-inc-aac-rip-off-\[MorThodKaiInc] - game\game\Code\Game\SERAAC\bin\Debug\net9.0\Content\placeholder_weapon.xnb
 C:\Users\Mario\source\repos\rastrelligr\morthodkai-inc-aac-rip-off-\[MorThodKaiInc] - game\game\Code\Game\SERAAC\bin\Debug\net9.0\Content\placeholder_sprsheet_grid1.xnb
+c:\Users\thianlapast\Downloads\DG225\morthodkai-inc-aac-rip-off-\[MorThodKaiInc] - game\game\Code\Game\SERAAC\obj\Debug\net9.0\mgcb.tool.restore
+c:\Users\thianlapast\Downloads\DG225\morthodkai-inc-aac-rip-off-\[MorThodKaiInc] - game\game\Code\Game\SERAAC\obj\Debug\net9.0\SERAAC.dll
+c:\Users\thianlapast\Downloads\DG225\morthodkai-inc-aac-rip-off-\[MorThodKaiInc] - game\game\Code\Game\SERAAC\obj\Debug\net9.0\refint\SERAAC.dll
+c:\Users\thianlapast\Downloads\DG225\morthodkai-inc-aac-rip-off-\[MorThodKaiInc] - game\game\Code\Game\SERAAC\obj\Debug\net9.0\SERAAC.pdb
