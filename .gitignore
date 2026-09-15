@@ -20,11 +20,13 @@
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.csproj.AssemblyReference.cache
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.GeneratedMSBuildEditorConfig.editorconfig
 # ==========================================
-# Personal IDE & Temp (Added by Member)
+# Project Build Outputs & IDE Rules
 # ==========================================
 bin/
 obj/
+Content/bin/
+Content/obj/
+*.mgcontent
 .vs/
 *.user
 *.suo
-# Hahaha MonoGame
