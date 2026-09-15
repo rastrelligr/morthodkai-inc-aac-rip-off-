@@ -4,10 +4,9 @@
 
 <!-- Sprint 1: เปลี่ยนชื่อ sprint-01.md จาก Lab 07 เป็น sprint-plan-01.md แล้วแทนที่เนื้อหาด้วย template นี้ -->
 
-
 <!-- Sprint 2-4 ในแลปถัดไป: คัดลอกไฟล์นี้ทั้งไฟล์ไปสร้าง sprint-plan-02.md, sprint-plan-03.md, sprint-plan-04.md ตามลำดับ -->
 
-# Sprint [1] 
+# Sprint [1]
 
 **Sprint Goal:** [ทำ Core Mechanic ให้เล่นได้]
 **ระยะเวลา:** [2026-09-01] — [2026-09-14]
@@ -40,9 +39,9 @@
 
 [As a player, I want to level up, so that I can be stronger]
 
-- [ ] [Progression Tracking (Exp, Level)))]  [owner:: Peachy] [domain::programmer] [estimate:: 10]  [status:: In Progress]
+- [ ] [Progression Tracking (Exp, Level)))]  [owner:: Peachy] [domain::programmer] [estimate:: 10] [actual:: 3h] [status:: Done] [note::  เหลือเพิ่ม method คำนวณ Level เพิ่มเติม]
 - [ ] [Design Level Up UI&Sprite]  [owner:: Fishe&Tap] [domain::artist] [estimate:: 4]  [status:: In Progress]
-- [ ] [ออกแบบ Stats ของตัวละคร]  [owner:: Jo] [domain::designer] [estimate:: 2]  [status:: In Progress]
+- [ ] [ออกแบบ Stats ของตัวละคร]  [owner:: Jo] [domain::designer] [estimate:: 2]  [status:: In Progress]git status
 
 ### Story[2]— Multiple Choice/Outcome
 
@@ -52,7 +51,7 @@
 - [ ] [Flagging system]  [owner:: Peachy] [domain::artist] [estimate:: 6]  [status:: In Progress]
 - [ ] [Player status]  [owner:: Peachy & Jo] [domain::programmer] [estimate:: 4]  [status:: In Progress]
 
-### Story[3]— Item & Enemy data 
+### Story[3]— Item & Enemy data
 
 [As a player, I want to defeat enemies, so that I can get loots and level up]
 
