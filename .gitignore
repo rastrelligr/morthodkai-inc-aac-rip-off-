@@ -19,3 +19,19 @@
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.assets.cache
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.csproj.AssemblyReference.cache
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.GeneratedMSBuildEditorConfig.editorconfig
+# ==========================================
+# Project Build Outputs & IDE Rules
+# ==========================================
+bin/
+obj/
+Content/bin/
+Content/obj/
+*.mgcontent
+.vs/
+*.user
+*.suo
+#ahsdhawgdhawgehaw
+#assumalaikum
+#dawidiaw
+#pepepepapeEAWKDKAWDKAWDKAWKEAWOEO2QEO21
+help
