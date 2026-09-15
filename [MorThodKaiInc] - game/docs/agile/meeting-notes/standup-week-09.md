@@ -12,7 +12,7 @@
 | MonoGame                                                                                   | ทาระบบกระโดดและตรวจการชนกับพื้น (Collision)                  | ยังคานวณ Gravity ไม่สมูท |  |
 | ตัวละครตกทะลุพื้นเป็นบางจังหวะ                               |                                                                                             |                                         |  |
 | ฟิชเช่(Artist)                                                                       | ร่าง Layout Tilemap ด่าน 1 ใน Tiled ขนาด 32x32                                |                                         |  |
-| จัดวาง Collision Layer ให้ตรงกับ Tilemap                                    | รอขนาด Tile Size ที่โปรแกรมเมอร์ต้องการยืนยัน             |                                         |  |
+| จัดวาง Collision Layer ให้ตรงกับ Tilemap  g                                  | รอขนาด Tile Size ที่โปรแกรมเมอร์ต้องการยืนยัน             |                                         |  |
 | Toptap (Artist)                                                                            |                                                                                             |                                         |  |
 | Jo (Designer)                                                                             | วางโครงสร้าง ScreenManager และหน้า Title Screen                          |                                         |  |
 | เชื่อมต่อระบบเปลี่ยน State ระหว่าง Title Screen และ Gameplay | โค้ด MonoGame บน                                                                      |                                         |  |
