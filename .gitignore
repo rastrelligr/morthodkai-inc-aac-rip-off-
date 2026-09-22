@@ -19,7 +19,7 @@
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.assets.cache
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.csproj.AssemblyReference.cache
 \[MorThodKaiInc] - game/game/Code/Game/SERAAC/obj/Debug/net9.0/SERAAC.GeneratedMSBuildEditorConfig.editorconfig
-# ==========================================
+# ==========================================git push origin
 # Project Build Outputs & IDE Rules
 # ==========================================
 bin/
@@ -30,3 +30,4 @@ Content/obj/
 .vs/
 *.user
 *.suo
+\[MorThodKaiInc] - game/game/Code/Game/SERAAC/Content/obj
