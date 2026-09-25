@@ -1,0 +1,7 @@
+{
+  // Mock-up monster. Every enemy type uses it, recoloured by EnemyDef.Color (see Data/EnemyDb.cs).
+  "id": "enemy_mockup",
+  "image": "monster.png",
+  "reference": "idle",
+  "frames": [ { "name": "idle" } ]
+}

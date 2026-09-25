@@ -1,0 +1,8 @@
+{
+  // Placeholder sprite for Sister Noa (single pose). Add more poses to the "frames" list later.
+  "id": "char_priest",
+  "image": "Noa.png",
+  "reference": "idle",
+  "scale": 1.0,
+  "frames": [ { "name": "idle" } ]
+}

@@ -1,0 +1,8 @@
+{
+  // Placeholder sprite for Pillow (single pose). Add more poses to the "frames" list later.
+  "id": "char_knight",
+  "image": "Pillow.png",
+  "reference": "idle",
+  "scale": 1.0,
+  "frames": [ { "name": "idle" } ]
+}

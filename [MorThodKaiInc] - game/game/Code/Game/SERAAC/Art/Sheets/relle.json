@@ -1,0 +1,17 @@
+{
+  // Relle & Pulverizer. Boxes are rough areas around each pose on the sheet (labels left out);
+  // the game trims them. "footX" = x of the feet (they stand on the bottom of the pose);
+  // "foot": [x, y] sets both, for poses where something reaches below the feet (Slam).
+  "id": "char_relle",
+  "image": "relle_sheet.png",
+  "reference": "combat_idle",
+  "frames": [
+    { "name": "combat_idle", "box": [300, 100, 580, 890],  "footX": 510 },
+    { "name": "portrait",    "box": [260, 1160, 500, 850], "footX": 530 },
+    { "name": "stab1",       "box": [1600, 180, 1160, 800], "footX": 2030 },
+    { "name": "stab2",       "box": [2080, 1150, 920, 850], "footX": 2350 },
+    { "name": "swing1",      "box": [3140, 20, 850, 970],  "footX": 3580 },
+    { "name": "swing2",      "box": [3100, 1030, 890, 990], "footX": 3600 },
+    { "name": "slam",        "box": [3100, 2060, 890, 935], "foot": [3330, 2832] }
+  ]
+}
