@@ -4,6 +4,6 @@
   "id": "char_hunter",
   "image": "Winter.png",
   "reference": "idle",
-  "scale": 0.4,
+  "scale": 0.6,
   "frames": [ { "name": "idle" } ]
 }
