@@ -49,7 +49,7 @@ gantt
 | 3 | As a player, I want to see complete visual, so that I know what item/object is                      | Should Have  | 8             |
 | 4 | As a player, I expect the game to gave random loot, so that it can have more variety               | Should Have  | 4             |
 | 5 | As an Artist, I want to create satisfying animation, so that players can engage by the game visuals | Nice to Have | 8             |
-| 6 | As a programmer, I want to integrage couch coop, so that I can play with friend                     | Should Have  | 8             |
+| 6 |                                                                                                     | Should Have  | 8             |
 
 ## Sprint 3 (TBA)
 

@@ -7,20 +7,20 @@ date: [7/9/2026]
 
 ## Sprites / Textures
 
-| Asset Name        | คำอธิบาย              | ขนาด                    | แหล่งที่มา                                              | License   | สถานะ     | รับผิดชอบ |
-| ----------------- | ----------------------------- | --------------------------- | ----------------------------------------------------------------- | --------- | -------------- | ------------------ |
-| player_spr.png    | spritesheet player            | 128x128                     | \assest\player\player_sprsheet.png                                | [license] | 🔲 Not Started | fishe              |
-| UI                | spritesheet UI                | varied (มีหลายอัน) | https://bdragon1727.itch.io/basic-pixel-health-bar-and-scroll-bar | [license] | 🔲 Not Started | fishe              |
-| enemy_spr         | spritesheet enemy + animation | varied (มีหลายอัน  | https://zerie.itch.io/tiny-rpg-character-asset-pack               | [license] | 🔲 Not Started | fishe              |
-| icon_spr.png      | spritesheet icon              | 512 * 4384                  | https://clockworkraven.itch.io/raven-fantasy-icons                | [license] | 🔲 Not Started | fis                |
-|                   |                               | -                           | -                                                                 | [license] | 🔲 Not Started | fishe              |
-|                   |                               | -                           | -                                                                 | [license] | 🔲 Not Started | fishe              |
-|                   |                               | -                           | -                                                                 | [license] | 🔲 Not Started | tap                |
-|                   |                               | -                           | -                                                                 | [license] | 🔲 Not Started | tap                |
-| effect.png        | fight sfx                     | varied (มีหลายอัน) | https://sentient-dream-studio.itch.io/pixel-holy-effects-pack01   | [license] | 🔲 Not Started |                    |
-| dice_sprsheet.png | dice                          | -                           | -                                                                 | [license] | 🔲 Not Started |                    |
-|                   |                               |                             |                                                                   |           |                |                    |
-|                   |                               |                             |                                                                   |           |                |                    |
+| Asset Name       | คำอธิบาย                                              | ขนาด                    | แหล่งที่มา                                              | License   | สถานะ     | รับผิดชอบ |
+| ---------------- | ------------------------------------------------------------- | --------------------------- | ----------------------------------------------------------------- | --------- | -------------- | ------------------ |
+| expsheet_exu_001 | spritesheet playable character (sort by index) on exploration | 128x128                     | \assest\player\player_sprsheet.png                                | [license] | 🔲 Not Started | fishe              |
+| UI_battler       | spritesheet UI on battler                                     | varied (มีหลายอัน) | https://bdragon1727.itch.io/basic-pixel-health-bar-and-scroll-bar | [license] | 🔲 Not Started | fishe              |
+| UI_explore       | spritesheet UI on exploration                                 | varied (มีหลายอัน  | https://zerie.itch.io/tiny-rpg-character-asset-pack               | [license] | 🔲 Not Started | fishe              |
+| icon_UI_status   | spritesheet icon on status                                    | 512 * 4384                  | https://clockworkraven.itch.io/raven-fantasy-icons                | [license] | 🔲 Not Started | fis                |
+| batsheet_exu_001 | spritesheet playable character (sort by index) on battler     | -                           | -                                                                 | [license] | 🔲 Not Started | fishe              |
+|                  |                                                               | -                           | -                                                                 | [license] | 🔲 Not Started | fishe              |
+|                  |                                                               | -                           | -                                                                 | [license] | 🔲 Not Started | tap                |
+|                  |                                                               | -                           | -                                                                 | [license] | 🔲 Not Started | tap                |
+|                  |                                                               | varied (มีหลายอัน) | https://sentient-dream-studio.itch.io/pixel-holy-effects-pack01   | [license] | 🔲 Not Started |                    |
+|                  |                                                               | -                           | -                                                                 | [license] | 🔲 Not Started |                    |
+|                  |                                                               |                             |                                                                   |           |                |                    |
+|                  |                                                               |                             |                                                                   |           |                |                    |
 
 ## Audio — SFX
 

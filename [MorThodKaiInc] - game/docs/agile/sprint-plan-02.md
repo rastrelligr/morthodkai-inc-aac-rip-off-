@@ -23,7 +23,7 @@
 | 3 | As a player, I want to see complete visual, so that I know what item/object is                      | Tap & Fishe        | Should Have  | 8             | 🔄 In Progress |
 | 4 | As a player, I expect the game to gave random loot, so that it can have more variety               | Peachy             | Should Have4 | 4             | 🔄 In Progress |
 | 5 | As an Artist, I want to create satisfying animation, so that players can engage by the game visuals | Fishe              | Nice to Have | 8             | 🔄 In Progress |
-| 6 | As a programmer, I want to integrage couch coop, so that I can play with friend                     | Peachy             | Should Have  | 8             | 🔲 Todo        |
+| 6 |                                                                                                     | Peachy             | Should Have  | 8             | 🔲 Todo        |
 
 ## Status Legend
 
@@ -67,12 +67,6 @@
 [As an Artist, I want to create satisfying animation, so that players can engage by the game visuals]
 
 - [ ] [Animating the sprite]  [owner:: Fishe] [domain::Artist] [estimate:: 10]  [status:: In Progress]
-
-### Story[6] — Co-op
-
-[As a programmer, I want to integrage couch coop, so that I can play with friend]
-
-- [ ] [Implement and design how multiplayer will work]  [owner:: Peachy] [domain::Programmer] [estimate:: 24]  [status:: to do]
 
 ## Daily Notes
 
