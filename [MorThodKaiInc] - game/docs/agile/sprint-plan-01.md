@@ -22,7 +22,7 @@
 | 2 | As a player, I want to multiple options, so that I can choose my own path                     | Peachy & Jo        | Must Have    | 8             | 🔲 Todo        |
 | 3 | As a player, I want to defeat enemies, so that I can get loots and level up                   | Peachy & Jo        | Must Have    | 4             | 🔲 Todo        |
 | 4 | As an Artist, I want to create compact spritesheet, so that I can flexibly change the texture | Tap & Fishe        | Nice to Have | 3             | 🔄 In Progress |
-| 5 | As a designer i want level design so 3D can layout map for code generate                      | Jo mama            | Must Have    | 10            | 🔄 In Progress |
+| 5 | As a designer i want level design so 3D can layout map for code generate                      | Jo                | Must Have    | 10            | 🔄 In Progress |
 
 ## Status Legend
 
@@ -63,8 +63,8 @@
 
 [As an Artist, I want to create compact spritesheet, so that I can flexibly change the texture]
 
-- [ ] [Concept art]  [owner:: Fishe&Tap] [domain::artist] [estimate:: 3]  [status:: In Progress]
-- [ ] [Art mock up]  [owner:: Fishe&Tap] [domain::artist] [estimate:: 5]  [status:: In Progress]
+- [X] [Concept art]  [owner:: Fishe&Tap] [domain::artist] [estimate:: 3]  [status:: Done]
+- [X] [Art mock up]  [owner:: Fishe&Tap] [domain::artist] [estimate:: 5]  [status:: Done]
 
 ### Story[5] — Level design
 
