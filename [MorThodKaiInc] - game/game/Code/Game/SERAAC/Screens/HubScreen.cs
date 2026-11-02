@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework.Input;
 using SERAAC.Core;
 using SERAAC.Data;
 using SERAAC.Meta;
+using SERAAC.Story;
 using SERAAC.Trial;
 using SERAAC.UI;
 
@@ -19,6 +20,7 @@ namespace SERAAC.Screens
         private enum Tab { Trials, Party, Upgrades, Equipment, Journal }
         private const int TabCount = 5;
         private static readonly string[] TabNames = { "TRIALS", "PARTY", "UPGRADES", "EQUIPMENT", "JOURNAL" };
+        private static readonly string[] TabTitles = { "Trials", "Party", "Upgrades", "Equipment", "Journal" };
 
         private Tab _tab = Tab.Trials;
         private int _areaIndex, _trialIndex, _column;  // Trials tab
@@ -32,9 +34,63 @@ namespace SERAAC.Screens
 
         private static Profile Profile => Game1.Instance.Profile;
 
+        // Prologue: Naomi walks the player through each tab (Story/StoryScripts.cs), one step at a time.
+        public bool Tutorial { get; init; }
+        private int _tutStep = -1;
+        private int _tutLevels;          // upgrade levels owned when the upgrade step began
+
+        private sealed class TutorialStep
+        {
+            public Func<List<UI.VnLine>> Lines;
+            public string Instruction;
+            public Func<HubScreen, bool> Done;
+            public Action OnStart;
+        }
+
+        private static int TotalLevels() => Profile.Characters.Values.Sum(c => c.HpLevel + c.DamageLevel + c.SpeedLevel);
+
+        private static readonly TutorialStep[] Steps =
+        {
+            new() { Lines = StoryScripts.HubWelcome, Instruction = "Open the PARTY tab", Done = h => h._tab == Tab.Party },
+            new() { Lines = StoryScripts.HubParty, Instruction = "Set up your squad, then open UPGRADES", Done = h => h._tab == Tab.Upgrades },
+            new() { Lines = StoryScripts.HubUpgrades, Instruction = "Buy at least one upgrade", Done = h => TotalLevels() > h._tutLevels,
+                    OnStart = () => StoryFlow.GiveFunds(200) },
+            new() { Lines = StoryScripts.HubEquipmentGo, Instruction = "Open the EQUIPMENT tab", Done = h => h._tab == Tab.Equipment },
+            new() { Lines = StoryScripts.HubEquipment, Instruction = "Open the TRIALS tab", Done = h => h._tab == Tab.Trials },
+            new() { Lines = StoryScripts.HubTrials, Instruction = "Select the Fallen Academy, then Embark", Done = _ => false },
+        };
+
+        private bool TutorialOn => Tutorial && _tutStep >= 0 && _tutStep < Steps.Length;
+
+        private void StartStep(int i)
+        {
+            _tutStep = i;
+            if (i >= Steps.Length) return;
+            var step = Steps[i];
+            step.OnStart?.Invoke();
+            _tutLevels = TotalLevels();
+            Screens.PushInstant(new StoryScreen(step.Lines()));
+        }
+
+        private void UpdateTutorial()
+        {
+            if (!TutorialOn) return;
+            if (Steps[_tutStep].Done(this)) StartStep(_tutStep + 1);
+        }
+
         public override void OnEnter()
         {
             _areaIndex = Math.Max(0, WorldDb.Areas.FindLastIndex(a => Profile.IsAreaUnlocked(a)));
+            if (StoryFlow.AcademyOnly)
+            {
+                // The prologue only deploys to the Fallen Academy: start with it selected.
+                var (area, trial) = WorldDb.Trial("city_academy");
+                if (area != null)
+                {
+                    _areaIndex = WorldDb.Areas.IndexOf(area);
+                    _trialIndex = area.Trials.IndexOf(trial);
+                }
+            }
         }
 
         private void Toast(string s)
@@ -47,14 +103,33 @@ namespace SERAAC.Screens
 
         public override void Update(GameTime gameTime)
         {
+            Audio.Music("hub");   // no-op while it's already playing
             _toastTime -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+            if (Tutorial && _tutStep < 0) { StartStep(0); return; }
+            UpdateTutorial();
 
             if (!_picking)
             {
+                var tabWas = _tab;
                 if (Input.Pressed(Keys.Tab) || Input.Pressed(Keys.E) || Input.Pressed(Keys.PageDown)) _tab = (Tab)(((int)_tab + 1) % TabCount);
                 if (Input.Pressed(Keys.Q) || Input.Pressed(Keys.PageUp)) _tab = (Tab)(((int)_tab + TabCount - 1) % TabCount);
                 for (int i = 0; i < TabCount; i++)
                     if (Input.Pressed(Keys.D1 + i)) _tab = (Tab)i;
+                if (_tab != tabWas) Audio.Play("ui_move");
+                int tabClick = Ui.ClickedIndex("tab");
+                if (tabClick >= 0)
+                {
+                    _tab = (Tab)tabClick;
+                    return;
+                }
+                if (Ui.Clicked("title"))
+                {
+                    Screens.Replace(new MainMenuScreen());
+                    return;
+                }
+                // Clicking a character row selects it on every tab that has the list.
+                int charClick = Ui.ClickedIndex("char");
+                if (charClick >= 0) _charIndex = charClick;
 
                 if (Input.Pressed(Keys.F5))
                 {
@@ -90,6 +165,29 @@ namespace SERAAC.Screens
             if (Input.Left) _column = 0;
             if (Input.Right && Profile.IsAreaUnlocked(areas[_areaIndex])) _column = 1;
 
+            // Mouse: click an area to open it, click a trial to select it, then Embark.
+            int areaClick = Ui.ClickedIndex("area");
+            if (areaClick >= 0)
+            {
+                _areaIndex = areaClick;
+                _trialIndex = Math.Min(_trialIndex, areas[_areaIndex].Trials.Count - 1);
+                if (Profile.IsAreaUnlocked(areas[_areaIndex])) _column = 1;
+                else Toast("Locked: complete the previous area's Main Objective.");
+                return;
+            }
+            int trialClick = Ui.ClickedIndex("trial");
+            if (trialClick >= 0 && Profile.IsAreaUnlocked(areas[_areaIndex]))
+            {
+                _column = 1;
+                _trialIndex = trialClick;
+                return;
+            }
+            if (Ui.Clicked("embark"))
+            {
+                Embark(areas[_areaIndex], areas[_areaIndex].Trials[_trialIndex]);
+                return;
+            }
+
             if (_column == 0)
             {
                 if (Input.Up) _areaIndex = (_areaIndex + areas.Count - 1) % areas.Count;
@@ -112,13 +210,24 @@ namespace SERAAC.Screens
 
         private void Embark(AreaDef area, TrialDef trial)
         {
+            if (Tutorial && _tutStep < Steps.Length - 1)
+            {
+                Toast("Naomi: \"Finish getting ready first.\"");
+                return;
+            }
+            if (StoryFlow.AcademyOnly && trial.Id != "city_academy")
+            {
+                Screens.PushInstant(new StoryScreen(StoryScripts.HubWrongTrial()));
+                return;
+            }
+            if (Tutorial) StoryFlow.FinishHubTutorial();
             if (Profile.PartyOrder.Count == 0)
             {
                 Toast("Your party is empty. Pick members in the PARTY tab.");
                 return;
             }
             var run = TrialRun.Start(Profile, area, trial, Environment.TickCount);
-            Screens.Replace(new ExplorationScreen(run));
+            Screens.Replace(new LoadingScreen(run));
         }
 
         private void UpdateParty()
@@ -129,12 +238,20 @@ namespace SERAAC.Screens
             var id = all[_charIndex].Id;
             var order = Profile.PartyOrder;
 
-            if (Input.Confirm && Locked(all[_charIndex]))
+            // Mouse: clicking a filled formation slot selects who stands there.
+            int cellClick = Ui.ClickedIndex("cell");
+            if (cellClick >= 0 && cellClick < order.Count)
+            {
+                _charIndex = all.FindIndex(c => c.Id == order[cellClick]);
+                return;
+            }
+            bool toggle = Input.Confirm || Ui.Clicked("toggle");
+            if (toggle && Locked(all[_charIndex]))
             {
                 Toast("Locked. " + all[_charIndex].UnlockHint);
                 return;
             }
-            if (Input.Confirm)
+            if (toggle)
             {
                 if (order.Contains(id)) order.Remove(id);
                 else if (order.Count < CharacterDb.PartySize) order.Add(id);
@@ -147,8 +264,8 @@ namespace SERAAC.Screens
             if (idx >= 0)
             {
                 int to = idx;
-                if (Input.Right) to = idx - 1;
-                if (Input.Left) to = idx + 1;
+                if (Input.Right || Ui.Clicked("forward")) to = idx - 1;
+                if (Input.Left || Ui.Clicked("backward")) to = idx + 1;
                 if (to != idx && to >= 0 && to < order.Count)
                 {
                     (order[idx], order[to]) = (order[to], order[idx]);
@@ -164,8 +281,12 @@ namespace SERAAC.Screens
             if (Input.DownKey) _charIndex = (_charIndex + 1) % all.Count;
             if (Input.Left) _statIndex = (_statIndex + 2) % 3;
             if (Input.Right) _statIndex = (_statIndex + 1) % 3;
-            if (Input.Confirm && Locked(all[_charIndex])) Toast("Locked. " + all[_charIndex].UnlockHint);
-            else if (Input.Confirm)
+            Ui.Pick("stat", ref _statIndex);
+            int buy = Ui.ClickedIndex("buy");
+            if (buy >= 0) _statIndex = buy;
+            bool confirm = Input.Confirm || buy >= 0;
+            if (confirm && Locked(all[_charIndex])) Toast("Locked. " + all[_charIndex].UnlockHint);
+            else if (confirm)
             {
                 var stat = (UpgradeStat)_statIndex;
                 var prog = Profile.Progress(all[_charIndex].Id);
@@ -173,7 +294,11 @@ namespace SERAAC.Screens
                 if (lvl >= Progression.MaxLevel) Toast("Already at max level.");
                 else if (!Progression.TryBuyUpgrade(Profile, all[_charIndex].Id, stat))
                     Toast($"Need {Progression.UpgradeCost(lvl)} secured shards.");
-                else Toast($"{all[_charIndex].Name}: {(stat == UpgradeStat.Hp ? "Health" : stat.ToString())} upgraded!");
+                else
+                {
+                    Audio.Play("upgrade");
+                    Toast($"{all[_charIndex].Name}: {(stat == UpgradeStat.Hp ? "Health" : stat.ToString())} upgraded!");
+                }
             }
         }
 
@@ -193,10 +318,14 @@ namespace SERAAC.Screens
                 var opts = PickerOptions();
                 if (Input.Up) _pickIndex = (_pickIndex + opts.Count - 1) % opts.Count;
                 if (Input.DownKey) _pickIndex = (_pickIndex + 1) % opts.Count;
-                if (Input.Cancel) _picking = false;
-                else if (Input.Confirm)
+                bool picked = Ui.Pick("pick", ref _pickIndex);
+                // A click outside the picker closes it.
+                bool clickedAway = Input.Click && !picked && Ui.Hover("pickbox") < 0;
+                if (Input.Cancel || clickedAway) _picking = false;
+                else if (Input.Confirm || picked)
                 {
                     Progression.Equip(Profile, all[_charIndex].Id, (EquipSlot)_slotIndex, opts[_pickIndex]);
+                    Audio.Play("upgrade");
                     _picking = false;
                 }
                 return;
@@ -204,8 +333,10 @@ namespace SERAAC.Screens
             if (Input.Up) _charIndex = (_charIndex + all.Count - 1) % all.Count;
             if (Input.DownKey) _charIndex = (_charIndex + 1) % all.Count;
             if (Input.Left || Input.Right) _slotIndex = 1 - _slotIndex;
-            if (Input.Confirm && Locked(all[_charIndex])) Toast("Locked. " + all[_charIndex].UnlockHint);
-            else if (Input.Confirm)
+            bool slotClicked = Ui.Pick("slot", ref _slotIndex);
+            bool open = Input.Confirm || slotClicked;
+            if (open && Locked(all[_charIndex])) Toast("Locked. " + all[_charIndex].UnlockHint);
+            else if (open)
             {
                 _picking = true;
                 _pickIndex = 0;
@@ -221,19 +352,16 @@ namespace SERAAC.Screens
             double t = gameTime.TotalGameTime.TotalSeconds;
             Core.Draw.Art(sb, "bg_hub", new Rectangle(0, 0, Game1.Width, Game1.Height), t);
 
-            Core.Draw.Text(sb, Assets.Header, "THE SANCTUM", new Vector2(40, 22), Palette.Accent);
-            Core.Draw.Text(sb, Assets.Small, "Prepare before entering a Trial", new Vector2(40, 50), Palette.TextDim);
-            Core.Draw.TextRight(sb, Assets.Header, $"{Profile.SecuredShards} SHARDS", new Vector2(Game1.Width - 40, 22), Palette.Accent);
-            Core.Draw.TextRight(sb, Assets.Small, "secured loot", new Vector2(Game1.Width - 40, 50), Palette.TextDim);
+            if (!Core.Draw.Art(sb, "bg_hub", new Rectangle(0, 0, Game1.Width, Game1.Height), t)) Ui.Backdrop(sb, t, 0.45f);
 
-            for (int i = 0; i < TabCount; i++)
-            {
-                var r = new Rectangle(40 + i * 200, 80, 190, 38);
-                bool sel = (int)_tab == i;
-                Core.Draw.Rect(sb, r, sel ? Palette.PanelLight : Palette.Panel);
-                if (sel) Core.Draw.Rect(sb, new Rectangle(r.X, r.Bottom - 3, r.Width, 3), Palette.Accent);
-                Core.Draw.TextCentered(sb, Assets.Body, $"{i + 1}  {TabNames[i]}", r.Center.ToVector2(), sel ? Palette.Accent : Palette.TextDim);
-            }
+            // Top: the menu bar (Q / E cycle it), then the screen title and the secured shards under it.
+            Ui.TabBar(sb, "tab", TabTitles, (int)_tab, new Rectangle(0, 0, Game1.Width, 56));
+            Ui.ScreenTitle(sb, "The Sanctum", new Vector2(40, 68));
+            float titleW = Assets.Title.MeasureString("THE SANCTUM").X;
+            Core.Draw.Text(sb, Assets.Small, "Prepare before entering a Trial", new Vector2(40 + 26 + titleW + 16, 96), Palette.TextDim, shadow: false);
+            Core.Draw.TextRight(sb, Assets.Small, "Secured Loot", new Vector2(Game1.Width - 40, 74), Palette.TextDim, shadow: false);
+            Core.Draw.TextRight(sb, Assets.Header, $"{Profile.SecuredShards} SHARDS", new Vector2(Game1.Width - 40, 90), Palette.Accent);
+            Core.Draw.Diamond(sb, new Vector2(Game1.Width - 52 - Assets.Header.MeasureString($"{Profile.SecuredShards} SHARDS").X, 104), 14, Palette.Accent);
 
             switch (_tab)
             {
@@ -246,90 +374,145 @@ namespace SERAAC.Screens
 
             string hint = _tab switch
             {
-                Tab.Trials => "Up/Down select   Left/Right column   Enter embark",
-                Tab.Party => "Up/Down select   Enter add/remove   Left/Right move in formation",
-                Tab.Upgrades => "Up/Down character   Left/Right stat   Enter buy",
-                Tab.Journal => "Quests and allies",
-                _ => _picking ? "Up/Down choose   Enter equip   Esc close" : "Up/Down character   Left/Right slot   Enter change",
+                Tab.Trials => "Click an area, then a trial, then Embark.\nKeys: Up/Down, Left/Right, Enter.",
+                Tab.Party => "Click a character, then Add / Remove. The arrows move them in the formation.\nKeys: Enter, Left/Right.",
+                Tab.Upgrades => "Click a character, then Buy on a stat.\nKeys: Up/Down, Left/Right, Enter.",
+                Tab.Journal => "Quests and allies.",
+                _ => "Click a character, then a slot to change it. Click outside the list to close it.",
             };
-            Core.Draw.Text(sb, Assets.Small, hint + "      Tab/Q/E switch tab   Esc main menu   F5 +100 shards, F6 unlock all (debug)",
-                new Vector2(40, Game1.Height - 28), Palette.TextDim);
+            Ui.Footer(sb, "title", ("Esc", "Title"), ("Enter", "Confirm"));
+            Ui.HelpButton(sb, new Vector2(40, Game1.Height - 20), hint + "\nSwitch tab: Tab, Q / E or 1-5.\nDebug: F5 +100 shards, F6 unlock all.");
+
+            if (TutorialOn) DrawCoach(sb, t);
 
             if (_toastTime > 0 && _toast != null)
             {
                 var size = Assets.Body.MeasureString(_toast);
                 var r = new Rectangle((int)(Game1.Width / 2 - size.X / 2 - 16), 640, (int)size.X + 32, 34);
-                Core.Draw.Panel(sb, r, Palette.PanelLight, Palette.Accent);
+                Core.Draw.Panel(sb, r, Palette.EnemyTag, Palette.Rose);
                 Core.Draw.TextCentered(sb, Assets.Body, _toast, r.Center.ToVector2(), Palette.Text);
             }
+        }
+
+        // Tutorial: Naomi's face and what to do next, bottom left, pulsing.
+        private void DrawCoach(SpriteBatch sb, double t)
+        {
+            string text = Steps[_tutStep].Instruction;
+            var size = Assets.Body.MeasureString(text);
+            int w = (int)size.X + 110;
+            var r = new Rectangle(Game1.Width / 2 - w / 2, Game1.Height - 94, w, 58);
+            float pulse = 0.7f + 0.3f * (float)Math.Sin(t * 4);
+            Core.Draw.Slant(sb, r, 14, Palette.Ink * 0.88f);
+            Core.Draw.Slant(sb, new Rectangle(r.X + 10, r.Bottom - 3, r.Width - 20, 3), 3, Palette.Lilac300 * pulse);
+            var face = Assets.Art("Dialogue/Portrait/Portrait_Naomi");
+            var faceBox = new Rectangle(r.X + 14, r.Y + 5, 48, 48);
+            if (face != null)
+            {
+                var tex = face.Texture;
+                int side = (int)(tex.Width * 0.42f);
+                var src = new Rectangle((tex.Width - side) / 2, (int)(tex.Height * 0.08f), side, side);
+                sb.End();
+                sb.Begin(samplerState: SamplerState.LinearClamp, transformMatrix: Core.Draw.FrameTransform);
+                sb.Draw(tex, faceBox, src, Color.White);
+                sb.End();
+                sb.Begin(samplerState: SamplerState.PointClamp, transformMatrix: Core.Draw.FrameTransform);
+            }
+            Core.Draw.Border(sb, faceBox, Palette.Lilac300, 1);
+            Core.Draw.Text(sb, Assets.Small, "NAOMI", new Vector2(r.X + 76, r.Y + 6), Palette.Lilac300, shadow: false);
+            Core.Draw.Text(sb, Assets.Body, text, new Vector2(r.X + 76, r.Y + 24), Palette.Paper, shadow: false);
         }
 
         private void DrawTrials(SpriteBatch sb, double t)
         {
             var areas = WorldDb.Areas;
             var left = new Rectangle(40, 134, 400, 490);
-            Core.Draw.Panel(sb, left, border: _column == 0 ? Palette.Accent : Palette.Border);
-            Core.Draw.Text(sb, Assets.Body, "AREAS", new Vector2(left.X + 16, left.Y + 12), Palette.TextDim);
+            Core.Draw.Panel(sb, left, border: _column == 0 ? Palette.Selected : Palette.Border);
+            Ui.SectionBar(sb, new Rectangle(left.X + 12, left.Y + 10, left.Width - 24, 24), "Areas");
 
-            for (int i = 0; i < areas.Count; i++)
+            // Mods can add areas and trials: past what fits, the list scrolls to keep the selection in view.
+            var (areaFirst, areaShown) = Window(areas.Count, _areaIndex, 132, left.Height - 52);
+            for (int i = areaFirst; i < areaFirst + areaShown; i++)
             {
                 var a = areas[i];
                 bool unlocked = Profile.IsAreaUnlocked(a);
                 bool done = Profile.CompletedObjectives.Contains(a.ObjectiveId);
-                var r = new Rectangle(left.X + 12, left.Y + 44 + i * 110, left.Width - 24, 100);
+                var r = new Rectangle(left.X + 12, left.Y + 44 + (i - areaFirst) * 132, left.Width - 24, 124);
                 bool sel = i == _areaIndex;
-                Core.Draw.Rect(sb, r, sel ? Palette.PanelLight : Palette.Panel);
+                Ui.Card(sb, r, sel);
+                Ui.HoverRow(sb, "area", i, r, sel);
                 Core.Draw.Rect(sb, new Rectangle(r.X, r.Y, 6, r.Height), unlocked ? a.Accent : Palette.TextDisabled);
                 Core.Draw.Text(sb, Assets.Header, a.Name, new Vector2(r.X + 18, r.Y + 8), unlocked ? (sel ? Palette.Accent : Palette.Text) : Palette.TextDisabled);
                 if (!unlocked)
                     Core.Draw.Text(sb, Assets.Small, "LOCKED  -  complete the previous Main Objective", new Vector2(r.X + 18, r.Y + 40), Palette.TextDisabled);
                 else
                 {
-                    Core.Draw.Wrapped(sb, Assets.Small, a.Description, new Vector2(r.X + 18, r.Y + 38), r.Width - 30, Palette.TextDim);
-                    Core.Draw.Text(sb, Assets.Small, (done ? "[DONE] " : "[    ] ") + "Main Objective: " + a.ObjectiveName,
-                        new Vector2(r.X + 18, r.Y + 76), done ? Palette.Heal : Palette.Text);
+                    RichText.Wrapped(sb, Assets.Small, a.Description, new Vector2(r.X + 22, r.Y + 40), r.Width - 36, Palette.TextDim);
+                    Core.Draw.Text(sb, Assets.Small, (done ? "DONE  " : "") + "Main Objective: " + a.ObjectiveName,
+                        new Vector2(r.X + 22, r.Y + 98), done ? Palette.Heal : Palette.Accent, shadow: false);
                 }
             }
 
             var area = areas[_areaIndex];
             var right = new Rectangle(460, 134, 780, 490);
-            Core.Draw.Panel(sb, right, border: _column == 1 ? Palette.Accent : Palette.Border);
-            Core.Draw.Text(sb, Assets.Body, "TRIALS IN " + area.Name.ToUpper(), new Vector2(right.X + 16, right.Y + 12), Palette.TextDim);
+            Core.Draw.Panel(sb, right, border: _column == 1 ? Palette.Selected : Palette.Border);
+            Ui.SectionBar(sb, new Rectangle(right.X + 12, right.Y + 10, right.Width - 24, 24), "Trials in " + area.Name);
             bool areaOpen = Profile.IsAreaUnlocked(area);
 
-            for (int i = 0; i < area.Trials.Count; i++)
+            // Two trials fit as full cards; more get compact cards (no description), then scroll.
+            const int listH = 366;   // between the header and the party preview
+            int step = area.Trials.Count <= 2 ? 150 : Math.Max(100, listH / area.Trials.Count);
+            bool compact = step < 150;
+            var (trialFirst, trialShown) = Window(area.Trials.Count, _trialIndex, step, listH);
+            for (int i = trialFirst; i < trialFirst + trialShown; i++)
             {
                 var tr = area.Trials[i];
-                var r = new Rectangle(right.X + 12, right.Y + 44 + i * 150, right.Width - 24, 140);
+                var r = new Rectangle(right.X + 12, right.Y + 44 + (i - trialFirst) * step, right.Width - 24, step - 10);
+                int dy = compact ? -44 : 0;   // compact cards move the numbers up into the description's place
                 bool sel = _column == 1 && i == _trialIndex;
-                Core.Draw.Rect(sb, r, sel ? Palette.PanelLight : Palette.Panel);
-                if (sel) Core.Draw.Border(sb, r, Palette.Accent);
+                Ui.Card(sb, r, sel);
+                if (areaOpen) Ui.HoverRow(sb, "trial", i, r, sel);
+                if (sel && areaOpen)
+                    Ui.Button(sb, "embark", 0, new Rectangle(r.Right - 170, r.Y + 10, 156, 40), "EMBARK", font: Assets.Header);
                 var nameColor = areaOpen ? (sel ? Palette.Accent : Palette.Text) : Palette.TextDisabled;
-                Core.Draw.Text(sb, Assets.Header, tr.Name, new Vector2(r.X + 16, r.Y + 10), nameColor);
-                Core.Draw.Wrapped(sb, Assets.Body, tr.Description, new Vector2(r.X + 16, r.Y + 42), r.Width - 32, Palette.TextDim);
+                Core.Draw.Text(sb, Assets.Header, tr.Name.ToUpperInvariant(), new Vector2(r.X + 22, r.Y + 10), nameColor);
+                if (!compact) RichText.Wrapped(sb, Assets.Body, tr.Description, new Vector2(r.X + 22, r.Y + 44), r.Width - 220, Palette.TextDim);
 
-                string danger = new string('#', tr.Tier) + new string('-', 4 - tr.Tier);
+                // Danger as four slanted pips, then the trial's numbers.
+                Core.Draw.Label(sb, "Danger", new Vector2(r.X + 22, r.Y + 90 + dy), Palette.TextDim);
+                for (int d = 0; d < 4; d++)
+                    Core.Draw.Slant(sb, new Rectangle(r.X + 96 + d * 16, r.Y + 93 + dy, 13, 12), 4, d < tr.Tier ? Palette.Danger : Palette.Grey900);
                 Core.Draw.Text(sb, Assets.Small,
-                    $"Rooms {tr.RoomCount}    Danger [{danger}]    Loot x{tr.LootMultiplier:0.0#}    Extraction points {tr.ExtractionPoints}",
-                    new Vector2(r.X + 16, r.Y + 90), Palette.Text);
+                    $"Rooms {tr.RoomCount}    Loot x{tr.LootMultiplier:0.0#}    Extraction points {tr.ExtractionPoints}",
+                    new Vector2(r.X + 176, r.Y + 90 + dy), Palette.Text, shadow: false);
+                // The Objective Pool: one of these is rolled each time the trial starts.
+                string pool = string.Join(" / ", tr.Objectives.Select(o => o.Name));
                 if (tr.HasMainObjective)
-                    Core.Draw.Text(sb, Assets.Small, "* Contains the Main Objective: " + area.ObjectiveName,
-                        new Vector2(r.X + 16, r.Y + 112), Palette.Accent);
+                    Core.Draw.Text(sb, Assets.Small, Fit($"Main Objective: {area.ObjectiveName}", Assets.Small, r.Width - 40),
+                        new Vector2(r.X + 22, r.Y + 112 + dy), Palette.Accent, shadow: false);
+                else if (tr.Objectives.Count > 0)
+                    Core.Draw.Text(sb, Assets.Small, Fit("Objective, one of: " + pool, Assets.Small, r.Width - 40), new Vector2(r.X + 22, r.Y + 112 + dy), Palette.Text, shadow: false);
             }
+            if (trialFirst > 0) Core.Draw.TextRight(sb, Assets.Small, "more above", new Vector2(right.Right - 16, right.Y + 14), Palette.TextDim, shadow: false);
+            if (trialFirst + trialShown < area.Trials.Count)
+                Core.Draw.TextRight(sb, Assets.Small, "more below", new Vector2(right.Right - 16, right.Y + 44 + trialShown * step - 6), Palette.TextDim, shadow: false);
 
-            // Party preview so the player knows who's going in.
-            Core.Draw.Text(sb, Assets.Small, "PARTY (front -> back):", new Vector2(right.X + 16, right.Bottom - 70), Palette.TextDim);
+            // Party preview so the player knows who's going in (front first).
+            Core.Draw.Label(sb, "Party, front first", new Vector2(right.X + 16, right.Bottom - 74), Palette.TextDim);
             float x = right.X + 16;
             foreach (var id in Profile.PartyOrder)
             {
                 var c = CharacterDb.Get(id);
                 var s = Progression.Final(c, Profile.Progress(id));
-                string label = $"{c.Name} ({c.Role})  HP {s.Hp} DMG {s.Damage} SPD {s.Speed}";
-                Core.Draw.Text(sb, Assets.Small, label, new Vector2(x, right.Bottom - 46), Palette.Text);
-                x += Assets.Small.MeasureString(label).X + 24;
+                var chip = new Rectangle((int)x, right.Bottom - 52, 186, 40);
+                Core.Draw.Rect(sb, chip, Palette.Ink * 0.5f);
+                Core.Draw.Border(sb, chip, Palette.Line, 1);
+                Figures.Portrait(sb, c, new Rectangle(chip.X + 12, chip.Y + 3, 30, 34), t);
+                Core.Draw.Text(sb, Assets.Body, c.Name, new Vector2(chip.X + 48, chip.Y + 1), Palette.Paper, shadow: false);
+                Core.Draw.Text(sb, Assets.Small, $"HP {s.Hp}  DMG {s.Damage}  SPD {s.Speed}", new Vector2(chip.X + 48, chip.Y + 20), Palette.TextDim, shadow: false);
+                x += chip.Width + 6;
             }
             if (Profile.PartyOrder.Count < CharacterDb.PartySize)
-                Core.Draw.Text(sb, Assets.Small, $"Party has {Profile.PartyOrder.Count}/4 members.", new Vector2(right.X + 16, right.Bottom - 24), Palette.Unsecured);
+                Core.Draw.Text(sb, Assets.Small, $"Party has {Profile.PartyOrder.Count}/4 members.", new Vector2(right.X + 200, right.Bottom - 74), Palette.Unsecured, shadow: false);
         }
 
         private void DrawCharacterList(SpriteBatch sb, double t, Func<CharacterDef, string> extra)
@@ -343,8 +526,8 @@ namespace SERAAC.Screens
                 var r = new Rectangle(left.X + 10, left.Y + 8 + i * rowH, left.Width - 20, rowH - 4);
                 bool sel = i == _charIndex;
                 bool locked = Locked(c);
-                Core.Draw.Rect(sb, r, sel ? Palette.PanelLight : Palette.Panel);
-                if (sel) Core.Draw.Border(sb, r, Palette.Accent);
+                Ui.Card(sb, r, sel);
+                if (!_picking) Ui.HoverRow(sb, "char", i, r, sel);
                 Figures.Portrait(sb, c, new Rectangle(r.X + 8, r.Y + 4, 40, r.Height - 8), t, locked ? 0.2f : 1f);
                 if (locked)
                 {
@@ -378,63 +561,100 @@ namespace SERAAC.Screens
 
             var right = new Rectangle(500, 134, 740, 490);
             Core.Draw.Panel(sb, right);
-            Core.Draw.Text(sb, Assets.Body, "FORMATION", new Vector2(right.X + 16, right.Y + 12), Palette.TextDim);
-            Core.Draw.TextRight(sb, Assets.Small, "enemies are this way  >>", new Vector2(right.Right - 16, right.Y + 14), Palette.TextDim);
+            Ui.SectionBar(sb, new Rectangle(right.X + 12, right.Y + 13, right.Width - 270, 24), "Formation  -  enemies are to the right");
 
             // Back 2 on the left ... Front 1 on the right (facing the enemy).
             for (int slot = 0; slot < 4; slot++)
             {
                 int col = 3 - slot;
-                var cell = new Rectangle(right.X + 30 + col * 175, right.Y + 50, 160, 200);
-                Core.Draw.Rect(sb, cell, new Color(22, 18, 26));
-                Core.Draw.TextCentered(sb, Assets.Small, SlotName(slot), new Vector2(cell.Center.X, cell.Bottom - 14), Palette.TextDim);
+                var cell = new Rectangle(right.X + 30 + col * 175, right.Y + 46, 160, 160);
+                Core.Draw.Rect(sb, cell, Palette.PanelDark);
+                Core.Draw.Label(sb, SlotName(slot), new Vector2(cell.X + 10, cell.Bottom - 20), Palette.TextDim);
                 if (slot < order.Count)
                 {
                     var c = CharacterDb.Get(order[slot]);
                     bool sel = CharacterDb.All[_charIndex].Id == c.Id;
-                    if (sel) Core.Draw.Border(sb, cell, Palette.Accent);
-                    Figures.Unit(sb, c.ArtId, c.Role.Substring(0, 1), new Rectangle(cell.Center.X - 40, cell.Y + 20, 80, 130), c.Color, false, t);
-                    Core.Draw.TextCentered(sb, Assets.Small, c.Name, new Vector2(cell.Center.X, cell.Y + 164), sel ? Palette.Accent : Palette.Text);
+                    Ui.HoverRow(sb, "cell", slot, cell, sel);
+                    if (sel) Core.Draw.Rect(sb, new Rectangle(cell.X, cell.Bottom - 3, cell.Width, 3), Palette.Rose);
+                    Figures.Unit(sb, c.ArtId, c.Role.Substring(0, 1), new Rectangle(cell.Center.X - 34, cell.Y + 14, 68, 112), c.Color, false, t);
+                    Core.Draw.TextRight(sb, Assets.Small, c.Name.ToUpperInvariant(), new Vector2(cell.Right - 10, cell.Bottom - 20), sel ? Palette.Accent : Palette.Text, shadow: false);
+                    // Move arrows on the selected member: left = toward the back, right = toward the front.
+                    if (sel)
+                    {
+                        if (slot < order.Count - 1) Ui.Button(sb, "backward", 0, new Rectangle(cell.X + 4, cell.Y + 4, 30, 30), "<", font: Assets.Body);
+                        if (slot > 0) Ui.Button(sb, "forward", 0, new Rectangle(cell.Right - 34, cell.Y + 4, 30, 30), ">", font: Assets.Body);
+                    }
                 }
             }
 
-            // Skills of the highlighted character.
+            var chosen = CharacterDb.All[_charIndex];
+            bool inParty = order.Contains(chosen.Id);
+            if (!Locked(chosen))
+                Ui.Button(sb, "toggle", 0, new Rectangle(right.Right - 236, right.Y + 8, 220, 34),
+                    inParty ? $"Remove {chosen.Name}" : $"Add {chosen.Name} to party", enabled: inParty || order.Count < CharacterDb.PartySize, font: Assets.Small);
+
+            // The highlighted character: name, blurb, skills (one row each, hover for the full text), passives.
             var ch = CharacterDb.All[_charIndex];
-            float y = right.Y + 262;
+            float y = right.Y + 216;
+            float w = right.Width - 32;
             if (Locked(ch))
             {
-                Core.Draw.Text(sb, Assets.Body, "Locked", new Vector2(right.X + 16, y), Palette.TextDisabled);
-                Core.Draw.Wrapped(sb, Assets.Small, ch.UnlockHint ?? "", new Vector2(right.X + 16, y + 24), right.Width - 32, Palette.TextDim);
+                Core.Draw.Text(sb, Assets.Header, "LOCKED", new Vector2(right.X + 16, y), Palette.TextDisabled, shadow: false);
+                RichText.Wrapped(sb, Assets.Body, ch.UnlockHint ?? "", new Vector2(right.X + 16, y + 32), w, Palette.TextDim);
                 return;
             }
-            Core.Draw.Text(sb, Assets.Body, $"{ch.Name}, {ch.Role}" + (ch.MaxSp > 0 ? $"   (SP {ch.MaxSp}, +{Combat.Battle.SpPerTurn} per turn)" : ""),
-                new Vector2(right.X + 16, y), Palette.Accent);
-            Core.Draw.Wrapped(sb, Assets.Small, ch.Blurb, new Vector2(right.X + 16, y + 24), right.Width - 32, Palette.TextDim);
-            y += 48;
-            foreach (var a in ch.Skills)
+            Core.Draw.Text(sb, Assets.Header, ch.Name, new Vector2(right.X + 16, y - 4), Palette.Paper);
+            float nx = right.X + 26 + Assets.Header.MeasureString(ch.Name).X;
+            Core.Draw.Text(sb, Assets.Small, ch.Role.ToUpperInvariant() + (ch.MaxSp > 0 ? $"   SP {ch.MaxSp}, +{Combat.Battle.SpPerTurn} per turn" : ""),
+                new Vector2(nx, y + 6), Palette.TextDim, shadow: false);
+            y += 30 + RichText.Wrapped(sb, Assets.Small, ch.Blurb, new Vector2(right.X + 16, y + 30), w, Palette.TextDim) + 6;
+            int hovered = Ui.Hover("skillrow");
+            for (int i = 0; i < ch.Skills.Count; i++)
             {
-                SkillRow(sb, a, new Vector2(right.X + 16, y), right.Width - 32);
-                y += 36;
+                var row = new Rectangle(right.X + 12, (int)y, (int)w + 8, 26);
+                if (hovered == i) Core.Draw.Slant(sb, row, 8, Palette.Hover);
+                SkillRow(sb, ch.Skills[i], new Vector2(right.X + 16, y + 2), w);
+                Ui.Hit("skillrow", i, row);
+                y += 28;
             }
+            y += 4;
             foreach (var p in ch.Passives)
             {
-                Core.Draw.Text(sb, Assets.Small, $"PASSIVE  {p.Name}: {p.Description}", new Vector2(right.X + 16, y), Palette.Accent);
-                y += 18;
+                Core.Draw.Diamond(sb, new Vector2(right.X + 22, y + 9), 7, Palette.Coral);
+                RichText.Line(sb, Assets.Small, Fit($"{p.Name}: {p.Description}", Assets.Small, w - 20), new Vector2(right.X + 32, y), Palette.TextDim);
+                y += 19;
+            }
+            if (hovered >= 0 && hovered < ch.Skills.Count)
+            {
+                var a = ch.Skills[hovered];
+                Tooltip.Draw(sb, new Rectangle(right.X + 200, right.Y + 230, 200, 1), a.Name, a.Description, Palette.Rose,
+                    a.SpCost > 0 ? $"{a.SpCost} SP" : "free", 420);
             }
         }
 
+        // One line per skill: name, SP cost, positions it's used from, positions it hits, and its description cut to fit.
         public static void SkillRow(SpriteBatch sb, ActionDef a, Vector2 pos, float width)
         {
-            if (a.SpCost > 0) Core.Draw.Text(sb, Assets.Small, $"{a.SpCost} SP", new Vector2(pos.X + 110, pos.Y + 2), Palette.Guard);
-            Core.Draw.Text(sb, Assets.Body, a.Name, pos, Palette.Text);
-            Core.Draw.Text(sb, Assets.Small, "use", new Vector2(pos.X + 150, pos.Y + 2), Palette.TextDim);
-            Figures.RankPips(sb, a.UsableFrom, new Vector2(pos.X + 178, pos.Y + 2), false, Palette.Accent);
-            if (a.Side == TargetSide.Enemy)
-            {
-                Core.Draw.Text(sb, Assets.Small, "hits", new Vector2(pos.X + 238, pos.Y + 2), Palette.TextDim);
-                Figures.RankPips(sb, a.TargetRanks, new Vector2(pos.X + 270, pos.Y + 2), true, Palette.Danger);
-            }
-            Core.Draw.Text(sb, Assets.Small, a.Description, new Vector2(pos.X + 150, pos.Y + 18), Palette.TextDim);
+            Core.Draw.Text(sb, Assets.Body, a.Name, new Vector2(pos.X, pos.Y - 2), Palette.Text, shadow: false);
+            if (a.SpCost > 0) Core.Draw.Text(sb, Assets.Small, $"{a.SpCost} SP", new Vector2(pos.X + 120, pos.Y + 1), Palette.KwSp, shadow: false);
+            Figures.RankPips(sb, a.UsableFrom, new Vector2(pos.X + 160, pos.Y + 2), false, Palette.Accent);
+            if (a.Side == TargetSide.Enemy) Figures.RankPips(sb, a.TargetRanks, new Vector2(pos.X + 222, pos.Y + 2), true, Palette.Danger);
+            RichText.Line(sb, Assets.Small, Fit(a.Description ?? "", Assets.Small, width - 292), new Vector2(pos.X + 290, pos.Y + 1), Palette.TextDim);
+        }
+
+        // Which rows of a list to draw: all of them if they fit, else a run that keeps `selected` in view.
+        private static (int first, int count) Window(int total, int selected, int rowHeight, int height)
+        {
+            int shown = Math.Max(1, Math.Min(total, height / rowHeight));
+            int first = Math.Clamp(selected - shown + 1, 0, Math.Max(0, total - shown));
+            return (first, shown);
+        }
+
+        private static string Fit(string s, UiFont f, float width)
+        {
+            if (f.MeasureString(s).X <= width) return s;
+            while (s.Length > 1 && f.MeasureString(s + "..").X > width) s = s.Substring(0, s.Length - 1);
+            return s.TrimEnd() + "..";
         }
 
         public static string SlotName(int slot) => slot switch { 0 => "FRONT 1", 1 => "FRONT 2", 2 => "BACK 1", _ => "BACK 2" };
@@ -447,7 +667,7 @@ namespace SERAAC.Screens
             var right = new Rectangle(500, 134, 740, 490);
             if (Locked(c)) { DrawLockedInfo(sb, c, right); return; }
             Core.Draw.Panel(sb, right);
-            Core.Draw.Text(sb, Assets.Header, $"UPGRADE {c.Name.ToUpper()}", new Vector2(right.X + 16, right.Y + 12), Palette.Accent);
+            Ui.SectionBar(sb, new Rectangle(right.X + 12, right.Y + 10, right.Width - 24, 24), $"Upgrade {c.Name}");
             Core.Draw.Text(sb, Assets.Small, "Upgrades are permanent and are never lost, even if a Trial fails.",
                 new Vector2(right.X + 16, right.Y + 44), Palette.TextDim);
 
@@ -463,17 +683,22 @@ namespace SERAAC.Screens
                 bool afford = Profile.SecuredShards >= cost;
                 var r = new Rectangle(right.X + 16 + i * 240, right.Y + 80, 226, 260);
                 bool sel = i == _statIndex;
-                Core.Draw.Rect(sb, r, sel ? Palette.PanelLight : new Color(22, 18, 26));
-                if (sel) Core.Draw.Border(sb, r, Palette.Accent);
+                Ui.Card(sb, r, sel, Palette.PanelDark);
+                Ui.Hit("stat", i, r);
                 Core.Draw.TextCentered(sb, Assets.Header, names[i], new Vector2(r.Center.X, r.Y + 26), Palette.Text);
                 Core.Draw.TextCentered(sb, Assets.Title, values[i].ToString(), new Vector2(r.Center.X, r.Y + 90), Palette.Accent);
                 if (!max)
                     Core.Draw.TextCentered(sb, Assets.Body, $"next: +{Progression.PerLevel(stat)}", new Vector2(r.Center.X, r.Y + 136), Palette.Heal);
                 for (int p = 0; p < Progression.MaxLevel; p++)
-                    Core.Draw.Diamond(sb, new Vector2(r.Center.X - 48 + p * 24, r.Y + 170), 12, p < lvl ? Palette.Accent : new Color(60, 54, 66));
-                string costText = max ? "MAX LEVEL" : $"{cost} shards";
-                Core.Draw.TextCentered(sb, Assets.Header, costText, new Vector2(r.Center.X, r.Y + 220),
-                    max ? Palette.TextDim : afford ? Palette.Accent : Palette.Danger);
+                    Core.Draw.Diamond(sb, new Vector2(r.Center.X - 48 + p * 24, r.Y + 170), 12, p < lvl ? Palette.Accent : Palette.Grey900);
+                if (max)
+                    Core.Draw.TextCentered(sb, Assets.Header, "MAX LEVEL", new Vector2(r.Center.X, r.Y + 220), Palette.TextDim);
+                else
+                {
+                    var btn = Ui.Button(sb, "buy", i, new Rectangle(r.X + 16, r.Y + 198, r.Width - 32, 44), $"Buy  -  {cost} shards",
+                        enabled: afford, selected: sel && afford, font: Assets.Body);
+                    if (!afford) Core.Draw.TextCentered(sb, Assets.Small, "not enough shards", new Vector2(r.Center.X, btn.Bottom + 8), Palette.Danger);
+                }
             }
             Core.Draw.Text(sb, Assets.Small, "Cost rises with each level. Equipment bonuses are added on top of these values.",
                 new Vector2(right.X + 16, right.Y + 360), Palette.TextDim);
@@ -492,7 +717,7 @@ namespace SERAAC.Screens
             var right = new Rectangle(500, 134, 740, 490);
             if (Locked(ch)) { DrawLockedInfo(sb, ch, right); return; }
             Core.Draw.Panel(sb, right);
-            Core.Draw.Text(sb, Assets.Header, $"{ch.Name.ToUpper()}'S EQUIPMENT", new Vector2(right.X + 16, right.Y + 12), Palette.Accent);
+            Ui.SectionBar(sb, new Rectangle(right.X + 12, right.Y + 10, right.Width - 24, 24), $"{ch.Name}'s Equipment");
 
             for (int i = 0; i < 2; i++)
             {
@@ -500,9 +725,10 @@ namespace SERAAC.Screens
                 var item = ItemDb.GetEquipment(slot == EquipSlot.Weapon ? prog.Weapon : prog.Charm);
                 var r = new Rectangle(right.X + 16 + i * 360, right.Y + 56, 346, 120);
                 bool sel = i == _slotIndex;
-                Core.Draw.Rect(sb, r, sel ? Palette.PanelLight : new Color(22, 18, 26));
-                if (sel) Core.Draw.Border(sb, r, Palette.Accent);
+                Ui.Card(sb, r, sel, Palette.PanelDark);
+                if (!_picking) Ui.HoverRow(sb, "slot", i, r, sel);
                 Core.Draw.Text(sb, Assets.Small, slot.ToString().ToUpper(), new Vector2(r.X + 12, r.Y + 10), Palette.TextDim);
+                Core.Draw.TextRight(sb, Assets.Small, "click to change", new Vector2(r.Right - 12, r.Y + 10), Palette.TextDim);
                 if (item == null)
                     Core.Draw.Text(sb, Assets.Body, "(empty)", new Vector2(r.X + 12, r.Y + 36), Palette.TextDisabled);
                 else
@@ -534,17 +760,17 @@ namespace SERAAC.Screens
             if (_picking) DrawPicker(sb, ch, prog);
         }
 
-        // Quests taken from NPCs, and how to unlock the characters you don't have yet.
+        // Quests taken from NPCs, and how to unlock the characters that are still locked.
         private void DrawJournal(SpriteBatch sb, double t)
         {
             var left = new Rectangle(40, 134, 640, 490);
             Core.Draw.Panel(sb, left);
-            Core.Draw.Text(sb, Assets.Body, "QUESTS", new Vector2(left.X + 16, left.Y + 12), Palette.TextDim);
+            Ui.SectionBar(sb, new Rectangle(left.X + 12, left.Y + 10, left.Width - 24, 24), "Quests");
             float y = left.Y + 44;
             foreach (var q in QuestDb.All)
             {
                 var r = new Rectangle(left.X + 12, (int)y, left.Width - 24, 104);
-                Core.Draw.Rect(sb, r, Palette.PanelLight * 0.5f);
+                Ui.Card(sb, r, false);
                 if (Profile.Quest(q.Id) == null)
                 {
                     Core.Draw.Text(sb, Assets.Header, "???", new Vector2(r.X + 14, r.Y + 10), Palette.TextDisabled);
@@ -564,13 +790,13 @@ namespace SERAAC.Screens
 
             var right = new Rectangle(700, 134, 540, 490);
             Core.Draw.Panel(sb, right);
-            Core.Draw.Text(sb, Assets.Body, "ALLIES", new Vector2(right.X + 16, right.Y + 12), Palette.TextDim);
+            Ui.SectionBar(sb, new Rectangle(right.X + 12, right.Y + 10, right.Width - 24, 24), "Allies");
             y = right.Y + 44;
             foreach (var c in CharacterDb.All.Where(c => !c.StartsUnlocked))
             {
                 bool have = Profile.IsUnlocked(c.Id);
                 var r = new Rectangle(right.X + 12, (int)y, right.Width - 24, 130);
-                Core.Draw.Rect(sb, r, Palette.PanelLight * 0.5f);
+                Ui.Card(sb, r, false);
                 Figures.Portrait(sb, c, new Rectangle(r.X + 8, r.Y + 8, 70, r.Height - 16), t, have ? 1f : 0.15f);
                 Core.Draw.Text(sb, Assets.Header, have ? $"{c.Name} ({c.Role})" : "???", new Vector2(r.X + 92, r.Y + 10), have ? Palette.Accent : Palette.TextDisabled);
                 Core.Draw.Wrapped(sb, Assets.Small, have ? "Joined the Sanctum." : c.UnlockHint, new Vector2(r.X + 92, r.Y + 44), r.Width - 104, have ? Palette.Heal : Palette.Text);
@@ -583,9 +809,11 @@ namespace SERAAC.Screens
             var opts = PickerOptions();
             var slot = (EquipSlot)_slotIndex;
             var current = ItemDb.GetEquipment(slot == EquipSlot.Weapon ? prog.Weapon : prog.Charm);
-            Core.Draw.Rect(sb, new Rectangle(0, 0, Game1.Width, Game1.Height), Color.Black * 0.6f);
+            Core.Draw.Rect(sb, new Rectangle(0, 0, Game1.Width, Game1.Height), Palette.Ink * 0.6f);
+            Ui.BlockAll();
             var r = new Rectangle(Game1.Width / 2 - 300, 170, 600, 80 + opts.Count * 40);
-            Core.Draw.Panel(sb, r, border: Palette.Accent);
+            Core.Draw.Panel(sb, r);
+            Ui.Hit("pickbox", r);
             Core.Draw.Text(sb, Assets.Header, $"Choose {slot} for {ch.Name}", new Vector2(r.X + 20, r.Y + 16), Palette.Accent);
             for (int i = 0; i < opts.Count; i++)
             {
@@ -593,6 +821,7 @@ namespace SERAAC.Screens
                 var row = new Rectangle(r.X + 12, r.Y + 56 + i * 40, r.Width - 24, 36);
                 bool sel = i == _pickIndex;
                 if (sel) Core.Draw.Rect(sb, row, Palette.PanelLight);
+                Ui.HoverRow(sb, "pick", i, row, sel);
                 string label = e == null ? (current == null ? "(leave empty)" : "(unequip)") : e.Name;
                 if (e != null) Icons.Draw(sb, e.Id, new Rectangle(row.X + 8, row.Y + 2, 32, 32));
                 Core.Draw.Text(sb, Assets.Body, label, new Vector2(row.X + 48, row.Y + 8), sel ? Palette.Accent : Palette.Text);

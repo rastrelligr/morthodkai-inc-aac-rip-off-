@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map backgroundcolor="#000000" version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-down" width="12" height="10" tilewidth="32" tileheight="32" infinite="0" nextlayerid="13" nextobjectid="13">
+ <tileset firstgid="10881" source="TileSetDorm.tsx"/>
+ <layer id="1" name="Floor" width="12" height="10">
+  <data encoding="csv">
+0,0,0,0,10911,10912,10911,10912,10911,10912,10911,10912,
+0,0,0,0,10919,10920,10919,10920,10919,10920,10919,10920,
+0,0,0,0,0,0,10910,10910,10910,10912,10911,10912,
+0,0,0,0,0,0,10910,10910,10910,10920,10919,10920,
+10911,10912,10911,10912,0,0,10910,10910,10910,10912,10911,10912,
+10919,10920,10919,10920,0,0,10910,10910,10910,10920,10919,10920,
+10911,10912,10911,10912,10910,10910,10910,10910,10910,10912,10911,10912,
+10919,10920,10919,10920,10919,10920,10919,10920,10919,10920,10919,10920,
+10911,10912,10911,10912,10911,10912,10911,10912,10911,10912,10911,10912,
+10919,10920,10919,10920,10919,10920,10919,10920,10919,10920,10919,10920
+</data>
+ </layer>
+ <layer id="2" name="Wall" width="12" height="10">
+  <data encoding="csv">
+0,0,0,0,10881,10881,10924,10925,10926,10881,10881,10881,
+0,0,0,0,10889,10889,10932,10933,10934,10889,10889,10889,
+0,0,0,0,10897,10897,10940,10941,10942,10897,10897,10897,
+10881,10882,10883,10881,0,0,0,0,0,0,0,0,
+10889,10890,10891,10889,0,0,0,0,0,0,0,0,
+10897,10898,10899,10897,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0
+</data>
+ </layer>
+ <layer id="3" name="Furniture" width="12" height="10">
+  <data encoding="csv">
+0,0,0,0,10905,10906,0,0,0,10884,10885,10886,
+0,0,0,0,10913,10914,0,0,0,10892,10893,10894,
+0,0,0,0,10921,10922,10907,10908,0,10900,10901,10902,
+0,0,0,0,10929,10930,10915,10916,0,0,0,0,
+0,0,0,0,10937,10938,10939,0,0,0,0,0,
+0,0,0,0,10945,10946,10947,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,0,0,
+0,0,0,0,0,0,0,0,0,0,10927,10928,
+0,0,0,0,0,0,0,0,0,0,10935,10936,
+0,0,0,0,0,0,0,0,0,0,10943,10944
+</data>
+ </layer>
+ <objectgroup id="10" name="Collision" color="#ff3030" opacity="0.5">
+ <object id="1" name="void_left_wall" class="collision" x="0" y="0" width="128" height="190"/>
+ <object id="2" name="top_wall" class="collision" x="128" y="0" width="256" height="88"/>
+ <object id="3" name="bed" class="collision" x="128" y="60" width="64" height="128"/>
+ <object id="4" name="desk" class="collision" x="192" y="60" width="64" height="58"/>
+ </objectgroup>
+ <objectgroup id="11" name="Interact" color="#30c0ff">
+ <object id="5" name="bed" class="interact" x="128" y="64" width="64" height="124">
+  <properties>
+   <property name="label" value="Bed"/>
+  </properties>
+ </object>
+ <object id="6" name="bookshelf" class="interact" x="192" y="0" width="96" height="88">
+  <properties>
+   <property name="label" value="Bookshelf"/>
+  </properties>
+ </object>
+ <object id="7" name="desk" class="interact" x="192" y="64" width="64" height="56">
+  <properties>
+   <property name="label" value="Desk"/>
+  </properties>
+ </object>
+ <object id="8" name="tv" class="interact" x="288" y="0" width="96" height="80">
+  <properties>
+   <property name="label" value="TV"/>
+  </properties>
+ </object>
+ <object id="9" name="plant" class="interact" x="128" y="32" width="32" height="48">
+  <properties>
+   <property name="label" value="Plant"/>
+  </properties>
+ </object>
+ <object id="10" name="glass_door" class="interact" x="32" y="96" width="64" height="92">
+  <properties>
+   <property name="label" value="Glass door"/>
+  </properties>
+ </object>
+ <object id="11" name="door" class="exit" x="320" y="236" width="64" height="84">
+  <properties>
+   <property name="label" value="Leave the room"/>
+  </properties>
+ </object>
+ </objectgroup>
+ <objectgroup id="12" name="Spawns" color="#ffe040">
+ <object id="12" name="player_start" class="spawn" x="224" y="180">
+  <point/>
+ </object>
+ </objectgroup>
+</map>

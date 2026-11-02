@@ -1,0 +1,7 @@
+{
+  // Wraith (Stalker). Floats just above the ground.
+  "id": "enemy_wraith",
+  "image": "WraithSprite.png",
+  "reference": "idle",
+  "frames": [ { "name": "idle" } ]
+}

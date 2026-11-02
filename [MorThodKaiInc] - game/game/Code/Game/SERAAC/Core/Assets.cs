@@ -24,6 +24,7 @@ namespace SERAAC.Core
 
     // Fonts plus a runtime art registry. Art is loaded straight from the Art/ folder next to the
     // exe (no content pipeline), so artists can drop PNGs in and see them without touching code.
+    // Mods can add or replace any of it with the same layout under Mods/<mod>/Art/.
     // Anything missing falls back to the placeholder drawing each screen already does.
     public static class Assets
     {
@@ -57,26 +58,9 @@ namespace SERAAC.Core
             ArtSprite sprite = null;
             try
             {
-                if (Directory.Exists(_artRoot))
-                {
-                    string plain = Path.Combine(_artRoot, id + ".png");
-                    if (File.Exists(plain))
-                    {
-                        sprite = new ArtSprite { Texture = LoadPremultiplied(plain) };
-                    }
-                    else
-                    {
-                        foreach (var file in Directory.GetFiles(_artRoot, id + "@*.png", SearchOption.AllDirectories))
-                        {
-                            string suffix = Path.GetFileNameWithoutExtension(file).Substring(id.Length + 1);
-                            if (int.TryParse(suffix, out int frames) && frames > 0)
-                            {
-                                sprite = new ArtSprite { Texture = LoadPremultiplied(file), Frames = frames };
-                                break;
-                            }
-                        }
-                    }
-                }
+                // Mods' Art/ folders first (Core/Mods.cs), then the game's own.
+                foreach (var root in Mods.ArtRoots(_artRoot))
+                    if ((sprite = Find(root, id)) != null) break;
             }
             catch (Exception e)
             {
@@ -86,6 +70,40 @@ namespace SERAAC.Core
 
             _cache[id] = sprite;
             return sprite;
+        }
+
+        private static ArtSprite Find(string root, string id)
+        {
+            if (!Directory.Exists(root)) return null;
+            string plain = Path.Combine(root, id + ".png");
+            if (File.Exists(plain)) return new ArtSprite { Texture = LoadPremultiplied(plain) };
+
+            // Ids can include a subfolder ("Stages/City_N_1"): search that folder for "<name>@<frames>.png".
+            string dir = Path.GetDirectoryName(plain), name = Path.GetFileName(id);
+            var files = Directory.Exists(dir) ? Directory.GetFiles(dir, name + "@*.png", SearchOption.AllDirectories) : Array.Empty<string>();
+            foreach (var file in files)
+            {
+                string suffix = Path.GetFileNameWithoutExtension(file).Substring(name.Length + 1);
+                if (int.TryParse(suffix, out int frames) && frames > 0)
+                    return new ArtSprite { Texture = LoadPremultiplied(file), Frames = frames };
+            }
+            return null;
+        }
+
+        public static GraphicsDevice Device => _device;
+
+        // A PNG from anywhere on disk (Tiled tilesets), loaded once. Null when the file is missing or unreadable.
+        private static readonly Dictionary<string, Texture2D> _files = new(StringComparer.OrdinalIgnoreCase);
+
+        public static Texture2D LoadFile(string path)
+        {
+            if (_device == null || string.IsNullOrEmpty(path)) return null;
+            string full = Path.GetFullPath(path);
+            if (_files.TryGetValue(full, out var tex)) return tex;
+            try { tex = File.Exists(full) ? LoadPremultiplied(full) : null; }
+            catch (Exception e) { Console.WriteLine($"[Art] failed to load '{full}': {e.Message}"); tex = null; }
+            _files[full] = tex;
+            return tex;
         }
 
         // Texture2D.FromFile gives straight alpha; SpriteBatch's default blend expects premultiplied.

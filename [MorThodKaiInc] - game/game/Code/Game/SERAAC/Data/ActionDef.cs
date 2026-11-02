@@ -2,9 +2,15 @@ using System.Text;
 
 namespace SERAAC.Data
 {
-    public enum ActionKind { Attack, Heal, Defend, Taunt, Move }
+    // Move: step one slot (enemies). Charge: gain SP. Swap: move to any formation slot. Item: use a consumable.
+    // Protect: shield one ally (attacks on it hit the user instead). Wall: the user and adjacent allies take less damage.
+    // Reweave: pull one ally 1 position toward the user (swapping if that spot is taken).
+    // WindUp: spend the turn rearing up; next turn the user unleashes ActionDef.WindUp (telegraphed, can be interrupted).
+    public enum ActionKind { Attack, Heal, Defend, Taunt, Move, Charge, Swap, Item, Protect, Wall, Reweave, WindUp }
     public enum TargetSide { Enemy, Ally, Self }
-    public enum StatusKind { Guard, Taunt, Blight, Mark }
+    // Slow: -Power Speed. Protected / Wall: set by Mara, last until she acts again (StatusInstance.Source).
+    // Charging: winding up a big attack (Combatant.WindUpNext); an Interrupts hit cancels it.
+    public enum StatusKind { Guard, Taunt, Blight, Mark, Slow, Protected, Wall, Charging }
 
     // Formation slots as a bitmask. Slot 0 = Front 1, 1 = Front 2, 2 = Back 1, 3 = Back 2.
     public readonly struct Ranks
@@ -25,6 +31,9 @@ namespace SERAAC.Data
         }
 
         public bool Has(int slot) => slot >= 0 && slot < 4 && (_bits & (1 << slot)) != 0;
+
+        // True when every slot here is also in `other` (and there is at least one).
+        public bool Within(Ranks other) => _bits != 0 && (_bits & ~other._bits) == 0;
 
         // Four pips, front first: "##--" style for text-only UI.
         public override string ToString()
@@ -62,38 +71,73 @@ namespace SERAAC.Data
         public int Hits = 1;                  // multi-hit: every target is hit this many times
         public bool ShuffleTargets;           // on hit, the target side's positions are randomized
         public int KnockBack;                 // on hit, the target is pushed this many slots back
+        public int GainAegis;                 // Ironbound Aegis: Guard stacks the user gains on use
+        public float PowerPerAegis;           // spends all the user's Guard stacks: +this Power per stack (Iron Rebuke)
+        public int PullForward;               // on hit, the target is pulled this many slots toward the front (Snare Line)
+        public int GainThread;                // Threadweaver: Thread stacks the user gains on use
+        public bool Priority;                 // resolves before every normal action this turn (guarding, pulling)
+        public int HpCost;                    // HP the user pays on use (never below 1 HP)
+        public bool Interrupts;               // a hit cancels the target's wind-up (Charging)
+        public ActionDef WindUp;              // WindUp kind: the attack unleashed next turn
 
         // Pose(s) played from the user's sprite sheet while acting. Comma-separated = one per hit.
         public string Anim;
 
+        // Melee attackers run up to their target to hit it, then return. Null = decided from the ranks:
+        // an attack used from the front row that only reaches the enemy front row.
+        public bool? Melee;
+
+        // Particle presets (Art/Fx/particles.json). Null = the default for the action's kind.
+        public string HitFx;     // on each target hit
+        public string CastFx;    // on the user when the action starts
+
         public bool IsSingleTarget => Side != TargetSide.Self && !AreaEffect;
+        public bool IsMelee => Melee ?? (Kind == ActionKind.Attack && Side == TargetSide.Enemy
+                                         && UsableFrom.Within(Ranks.Of("12")) && TargetRanks.Within(Ranks.Of("12")));
         public string[] AnimSteps => string.IsNullOrEmpty(Anim) ? System.Array.Empty<string>() : Anim.Split(',');
     }
 
-    // Actions every character has, per the design doc example (Attack / Defend / Move).
+    // Actions outside a character's skill list. The party's Special Abilities (battle UI bottom row) are
+    // Guard, Item, Focus (gather energy) and Position (swap places); enemies step forward instead.
     public static class CommonActions
     {
-        // True for Defend/Advance/Retreat; everything else is a character's Skill.
-        public static bool IsCommon(ActionDef a) => a == Defend || a == Advance || a == Retreat;
+        // True for the common actions; everything else is a Skill (Feast and Knight's Stance count skills).
+        public static bool IsCommon(ActionDef a) => a == Defend || a == StepForward || a == Charge || a == Swap || a == UseItem;
 
+        // The party's Special Abilities, in the order the battle UI shows them.
         public static readonly ActionDef Defend = new()
         {
-            Id = "defend", Name = "Defend", Kind = ActionKind.Defend, Side = TargetSide.Self,
-            Description = "Halve damage taken until this character acts again.",
+            Id = "defend", Name = "Guard", Kind = ActionKind.Defend, Side = TargetSide.Self, Priority = true,
+            Description = "Brace before anyone else moves: halve damage taken until this character acts again.",
         };
 
-        public static readonly ActionDef Advance = new()
+        public static readonly ActionDef UseItem = new()
         {
-            Id = "advance", Name = "Advance", Kind = ActionKind.Move, Side = TargetSide.Self, MoveBy = -1,
+            Id = "item", Name = "Item", Kind = ActionKind.Item, Side = TargetSide.Self,
+            Description = "Use one of the trial's consumables. Takes this character's turn, at their speed.",
+        };
+
+        // Called "Advance" in the design doc; renamed Focus after playtesters read it as "move forward".
+        public static readonly ActionDef Charge = new()
+        {
+            Id = "charge", Name = "Focus", Kind = ActionKind.Charge, Side = TargetSide.Self,
+            Description = "Hold still and gather energy: gain 2 extra SP.",
+        };
+
+        public static readonly ActionDef Swap = new()
+        {
+            Id = "position", Name = "Position", Kind = ActionKind.Swap, Side = TargetSide.Ally,
+            Description = "Move to another position, swapping places with the ally standing there.",
+        };
+
+        public static readonly ActionDef[] PartySpecials = { Defend, UseItem, Charge, Swap };
+
+        // Enemies only: step one position toward the front.
+        public static readonly ActionDef StepForward = new()
+        {
+            Id = "step_forward", Name = "Step Forward", Kind = ActionKind.Move, Side = TargetSide.Self, MoveBy = -1,
             UsableFrom = Ranks.Of("234"),
             Description = "Move 1 position forward. Swaps with an ally standing there.",
-        };
-
-        public static readonly ActionDef Retreat = new()
-        {
-            Id = "retreat", Name = "Retreat", Kind = ActionKind.Move, Side = TargetSide.Self, MoveBy = 1,
-            UsableFrom = Ranks.Of("123"),
-            Description = "Move 1 position back. Swaps with an ally standing there.",
         };
     }
 }

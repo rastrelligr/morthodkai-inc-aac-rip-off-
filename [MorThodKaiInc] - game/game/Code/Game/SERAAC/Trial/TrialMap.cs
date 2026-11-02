@@ -17,7 +17,8 @@ namespace SERAAC.Trial
 
         public Room At(Point p) => Rooms.TryGetValue(p, out var r) ? r : null;
 
-        public static TrialMap Generate(TrialDef trial, Random rng, bool withNpcRoom = false)
+        // objectiveRooms: how many Objective rooms the run's objective needs (ObjectiveDef.RoomCount).
+        public static TrialMap Generate(TrialDef trial, Random rng, bool withNpcRoom = false, int objectiveRooms = 0)
         {
             var map = new TrialMap();
             var start = new Room { Id = 0, Grid = Point.Zero, Type = RoomType.Entrance };
@@ -54,7 +55,7 @@ namespace SERAAC.Trial
                 }
 
             map.ComputeDepths();
-            map.AssignTypes(trial, rng, withNpcRoom);
+            map.AssignTypes(trial, rng, withNpcRoom, objectiveRooms);
 
             foreach (var r in map.Rooms.Values)
             {
@@ -96,7 +97,7 @@ namespace SERAAC.Trial
             MaxDepth = Rooms.Values.Max(r => r.Depth);
         }
 
-        private void AssignTypes(TrialDef trial, Random rng, bool withNpcRoom)
+        private void AssignTypes(TrialDef trial, Random rng, bool withNpcRoom, int objectiveRooms)
         {
             var free = Rooms.Values.Where(r => r.Type == RoomType.Normal).ToList();
 
@@ -110,11 +111,17 @@ namespace SERAAC.Trial
                 return pick;
             }
 
-            // Main Objective sits at the deepest dead end: reaching it is the big risk.
-            if (trial.HasMainObjective)
+            // The first Objective room sits at the deepest dead end: reaching it is the big risk.
+            // Any others spread out away from it (and each other), still away from the entrance.
+            var objectives = new List<Room>();
+            for (int i = 0; i < objectiveRooms; i++)
             {
-                var obj = Take(r => true, r => r.Depth * 2 + (r.Links.Count == 1 ? 3 : 0));
-                if (obj != null) obj.Type = RoomType.Objective;
+                var obj = objectives.Count == 0
+                    ? Take(r => true, r => r.Depth * 2 + (r.Links.Count == 1 ? 3 : 0))
+                    : Take(r => r.Depth >= 2, r => objectives.Min(o => Distance(o, r)) + r.Depth * 0.5);
+                if (obj == null) break;
+                obj.Type = RoomType.Objective;
+                objectives.Add(obj);
             }
 
             // Extraction points are placed away from the entrance so leaving is a trip, not a free exit.

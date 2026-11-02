@@ -1,0 +1,9 @@
+{
+  // Relle's animated resting pose (6 frames, 3 x 2 grid). It replaces the still combat_idle wherever she
+  // stands still; her attack poses still come from relle.json until they are redrawn.
+  "id": "char_relle_idle",
+  "image": "M_RelleBattler_Idle.png",
+  "reference": "idle",
+  "scale": 1.0,
+  "frames": [ { "name": "idle", "grid": [3, 2], "fps": 8 } ]
+}

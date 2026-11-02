@@ -1,0 +1,62 @@
+{
+  // Atmosphere presets (Fx/Ambience.cs). Save while the game runs and it reloads.
+  // A preset is a list of layers drawn back to front. "front": true layers go over the characters / the map
+  // (in fights the band [0.22, 0.66] is where the fighters stand, from heads to feet).
+  // Kinds: dust, fog, smoke, clouds, embers, wind, rays.
+  // "y" = [top, bottom] of the band the layer lives in, as fractions of the screen / room (0 = top, 1 = bottom).
+  // Fights: a background's "ambience" field in Art/Stages/backgrounds.json wins, else the trial's preset below.
+  // Exploration rooms use the trial's preset too.
+  "trials": {
+    "city_outskirt": "city_outskirt",
+    "city_academy": "academy"
+  },
+
+  "presets": {
+    "city_outskirt": [
+      { "kind": "smoke", "count": 10, "y": [0.15, 0.55], "alpha": 0.16, "speed": 8, "rise": 14, "size": [160, 300], "color": [70, 66, 78] },
+      { "kind": "fog", "y": [0.3, 0.75], "alpha": 0.85, "speed": 10, "color": [175, 170, 188], "scale": 1.2 },
+      { "kind": "dust", "count": 45, "y": [0.05, 0.95], "alpha": 0.55, "speed": 14, "size": [1.5, 3.5], "color": [235, 220, 200], "front": true, "additive": true },
+      { "kind": "fog", "y": [0.22, 0.66], "alpha": 0.55, "speed": 18, "color": [175, 170, 188], "scale": 0.9, "front": true },
+      { "kind": "fog", "y": [0.5, 0.8], "alpha": 0.8, "speed": 14, "color": [165, 160, 178], "scale": 1.0, "front": true },
+      { "kind": "fog", "y": [0.6, 1.0], "alpha": 0.65, "speed": 22, "color": [140, 136, 152], "scale": 0.9, "front": true }
+    ],
+
+    "academy": [
+      { "kind": "rays", "count": 3, "y": [0.0, 0.7], "alpha": 0.07, "size": [10, 14], "color": [255, 210, 220], "additive": true },
+      { "kind": "fog", "y": [0.3, 0.75], "alpha": 0.85, "speed": 6, "color": [150, 120, 150], "scale": 1.4 },
+      { "kind": "smoke", "count": 8, "y": [0.2, 0.65], "alpha": 0.14, "speed": -5, "rise": 10, "size": [180, 320], "color": [60, 40, 56] },
+      { "kind": "embers", "count": 18, "y": [0.1, 0.9], "alpha": 0.8, "speed": 10, "rise": 30, "size": [1.5, 3], "color": [255, 120, 90], "front": true, "additive": true },
+      { "kind": "dust", "count": 35, "y": [0.05, 0.95], "alpha": 0.45, "speed": -8, "size": [1.5, 3], "color": [230, 200, 220], "front": true, "additive": true },
+      { "kind": "fog", "y": [0.22, 0.66], "alpha": 0.55, "speed": -14, "color": [150, 120, 150], "scale": 0.9, "front": true },
+      { "kind": "fog", "y": [0.5, 0.8], "alpha": 0.8, "speed": -10, "color": [130, 100, 130], "scale": 1.0, "front": true },
+      { "kind": "fog", "y": [0.62, 1.0], "alpha": 0.65, "speed": -16, "color": [110, 86, 112], "scale": 1.0, "front": true }
+    ],
+
+    // Exploration rooms (drawn over the room, so keep it light).
+    "room_dust": [
+      { "kind": "dust", "count": 30, "alpha": 0.4, "speed": 10, "size": [1.5, 3], "color": [235, 225, 210], "front": true, "additive": true },
+      { "kind": "fog", "y": [0.0, 1.0], "alpha": 0.16, "speed": 8, "color": [160, 150, 175], "scale": 1.6, "front": true }
+    ],
+
+    // Relle's dorm: a few motes in the lamp light.
+    "dorm": [
+      { "kind": "dust", "count": 22, "alpha": 0.35, "speed": 4, "size": [1.5, 2.5], "color": [255, 235, 215], "front": true, "additive": true }
+    ],
+
+    // The Airlift platform, high above the clouds. Back layers are the sky under the map; front layers drift over it.
+    "airlift_sky": [
+      { "kind": "fog", "y": [0.0, 1.0], "alpha": 0.4, "speed": 10, "color": [120, 124, 170], "scale": 2.4 },
+      { "kind": "clouds", "count": 10, "y": [0.0, 1.1], "alpha": 0.5, "speed": 18, "size": [220, 420], "color": [96, 98, 142] },
+      { "kind": "clouds", "count": 9, "y": [-0.1, 1.1], "alpha": 0.6, "speed": 34, "size": [240, 440], "color": [150, 150, 196] },
+      { "kind": "fog", "y": [0.2, 1.0], "alpha": 0.48, "speed": 30, "color": [170, 172, 214], "scale": 1.6 },
+      { "kind": "clouds", "count": 7, "y": [-0.1, 1.1], "alpha": 0.75, "speed": 56, "size": [280, 500], "color": [190, 188, 226] }
+    ],
+    "airlift_over": [
+      { "kind": "clouds", "count": 4, "y": [-0.2, 1.2], "alpha": 0.22, "speed": 46, "size": [520, 820], "color": [10, 10, 26] },
+      { "kind": "fog", "y": [0.0, 1.0], "alpha": 0.4, "speed": 40, "color": [210, 212, 240], "scale": 1.0 },
+      { "kind": "clouds", "count": 3, "y": [-0.2, 1.2], "alpha": 0.2, "speed": 90, "size": [420, 700], "color": [230, 230, 250] },
+      { "kind": "wind", "count": 26, "alpha": 0.4, "speed": 300, "size": [2, 7], "color": [235, 235, 255], "front": true, "additive": true },
+      { "kind": "dust", "count": 40, "alpha": 0.55, "speed": 80, "size": [1.5, 3], "color": [255, 240, 235], "front": true, "additive": true }
+    ]
+  }
+}

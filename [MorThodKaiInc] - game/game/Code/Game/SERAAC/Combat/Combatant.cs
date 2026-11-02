@@ -11,12 +11,15 @@ namespace SERAAC.Combat
         public StatusKind Kind;
         public int Turns;   // Guard/Taunt ignore this: they last until the owner acts again
         public int Power;
+        public Combatant Source;   // Protected / Wall: who set it (they end when Source acts again or falls)
     }
 
     public sealed class PlannedAction
     {
         public ActionDef Action;
         public Combatant Target; // null for self / area actions
+        public int TargetSlot = -1; // Position: the formation slot to move to (may be empty)
+        public string ItemId;       // Item: the consumable to use
     }
 
     public sealed class Combatant
@@ -35,7 +38,12 @@ namespace SERAAC.Combat
 
         public int Sp, MaxSp;                 // skill points (MaxSp 0 = unit does not use SP)
         public int Feast;                     // Feast passive stacks
+        public int Aegis;                     // Ironbound Aegis Guard stacks (Mara)
+        public int Thread;                    // Thread stacks (Elian)
         public float CritChance = Battle.BaseCritChance;
+        public ActionDef WindUpNext;          // wound up last turn: this attack is unleashed next (StatusKind.Charging)
+        public int LastWindUpTurn = -1;       // the AI waits a few turns between wind-ups (first one from turn 2)
+        public bool Enraged;                  // Apex at half HP: second phase
         public List<PassiveDef> Passives = new();
 
         public PartyMember Member;        // party side only: HP is written back after combat
@@ -45,16 +53,21 @@ namespace SERAAC.Combat
         public bool Has(PassiveKind k) => Passives.Any(p => p.Kind == k);
 
         public bool Has(StatusKind k) => Statuses.Any(s => s.Kind == k);
+        public StatusInstance Status(StatusKind k) => Statuses.FirstOrDefault(s => s.Kind == k);
 
-        public void AddStatus(StatusKind kind, int turns, int power)
+        // Speed after Slow (never below 1). Turn order uses this.
+        public int EffectiveSpeed => System.Math.Max(1, Speed - (Status(StatusKind.Slow)?.Power ?? 0));
+
+        public void AddStatus(StatusKind kind, int turns, int power, Combatant source = null)
         {
             var existing = Statuses.FirstOrDefault(s => s.Kind == kind);
             if (existing != null)
             {
                 existing.Turns = System.Math.Max(existing.Turns, turns);
                 existing.Power = System.Math.Max(existing.Power, power);
+                existing.Source = source ?? existing.Source;
             }
-            else Statuses.Add(new StatusInstance { Kind = kind, Turns = turns, Power = power });
+            else Statuses.Add(new StatusInstance { Kind = kind, Turns = turns, Power = power, Source = source });
         }
 
         public static Combatant FromMember(PartyMember m) => new()
@@ -69,7 +82,7 @@ namespace SERAAC.Combat
         {
             int hp = (int)System.Math.Round(e.Hp * statScale);
             var actions = new List<ActionDef>(e.Skills);
-            if (!actions.Contains(CommonActions.Advance)) actions.Add(CommonActions.Advance);
+            if (!actions.Contains(CommonActions.StepForward)) actions.Add(CommonActions.StepForward);
             return new Combatant
             {
                 Name = e.Name, IsParty = false, MaxHp = hp, Hp = hp,

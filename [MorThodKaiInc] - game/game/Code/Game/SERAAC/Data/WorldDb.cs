@@ -13,7 +13,9 @@ namespace SERAAC.Data
         public int Tier;             // difficulty tier; scales enemy stats
         public float LootMultiplier;
         public int ExtractionPoints = 1;
-        public bool HasMainObjective; // this trial holds the Area's Main Objective room
+        // Objective Pool: one is picked at random each time the trial starts (Data/ObjectiveDb.cs).
+        public List<ObjectiveDef> Objectives = new();
+        public bool HasMainObjective => Objectives.Any(o => o.Main); // every pick completes the Area's Main Objective
     }
 
     public sealed class AreaDef
@@ -38,23 +40,27 @@ namespace SERAAC.Data
         public static readonly AreaDef AbandonedCity = new()
         {
             Id = "city", Name = "Abandoned City",
-            Description = "Where it began. Streets full of Husks that still walk their old commutes.",
-            ObjectiveId = "city_source", ObjectiveName = "Find the Source of the Infection",
+            Description = "Where it began. Gnawers in the gutters, Wraiths in the windows, Husks that never finished changing.",
+            ObjectiveId = "city_source", ObjectiveName = "Slay the Wyvern",
             Floor = new Color(52, 50, 56), FloorAlt = new Color(46, 44, 50), Wall = new Color(24, 22, 28),
             Accent = new Color(200, 110, 60),
-            FrontPool = new() { EnemyDb.Husk, EnemyDb.Crawler, EnemyDb.Bloated },
-            BackPool = new() { EnemyDb.Spitter, EnemyDb.Husk },
-            Elite = EnemyDb.HollowWarden, Boss = EnemyDb.BlightHeart,
+            FrontPool = new() { EnemyDb.Gnawer, EnemyDb.Gnawer, EnemyDb.Husk },   // picked evenly: 2 in 3 are Gnawers
+            BackPool = new() { EnemyDb.Wraith, EnemyDb.Gnawer },
+            Elite = EnemyDb.Husk, Boss = EnemyDb.Wyvern,   // Elite Lairs: a Husk leads (stats +10% in elite rooms)
             Trials = new()
             {
-                new() { Id = "city_subway", Name = "Collapsed Subway", RoomCount = 8, Tier = 1, LootMultiplier = 1.0f,
+                new() { Id = "city_outskirt", Name = "City Outskirts", RoomCount = 8, Tier = 1, LootMultiplier = 1.0f,
+                    Objectives = new() { ObjectiveDb.CullGnawers, ObjectiveDb.CullBrutes, ObjectiveDb.HuntStalkers, ObjectiveDb.SupplyRun, ObjectiveDb.SignalTower },
                     Description = "A short dive. Good for learning the ropes and grabbing a few shards." },
-                new() { Id = "city_quarantine", Name = "Quarantine Block", RoomCount = 12, Tier = 2, LootMultiplier = 1.35f,
-                    HasMainObjective = true,
-                    Description = "The sealed hospital district. Something pulses at its heart." },
+                new() { Id = "city_academy", Name = "Fallen Academy", RoomCount = 12, Tier = 2, LootMultiplier = 1.35f,
+                    Objectives = new() { ObjectiveDb.SlayWyvern },
+                    Description = "Where we belongs." },
             },
         };
 
+        // Drowned Cathedral: all its enemies and its boss were the old designs, so the area is out until new
+        // ones are made for it. Uncomment, refill the pools / objectives, and add it to Areas again.
+        /*
         public static readonly AreaDef DrownedCathedral = new()
         {
             Id = "cathedral", Name = "Drowned Cathedral",
@@ -69,14 +75,16 @@ namespace SERAAC.Data
             Trials = new()
             {
                 new() { Id = "cathedral_nave", Name = "Flooded Nave", RoomCount = 10, Tier = 3, LootMultiplier = 1.7f,
+                    Objectives = new() { ObjectiveDb.RingBells, ObjectiveDb.CullHounds, ObjectiveDb.Reliquary },
                     Description = "Knee-deep water and pews full of the faithful." },
                 new() { Id = "cathedral_tower", Name = "Bell Tower Depths", RoomCount = 14, Tier = 4, LootMultiplier = 2.1f,
-                    ExtractionPoints = 2, HasMainObjective = true,
+                    ExtractionPoints = 2, Objectives = new() { ObjectiveDb.SilenceHymn, ObjectiveDb.BreakStones },
                     Description = "Down, not up. The bells ring from below." },
             },
         };
+        */
 
-        public static readonly List<AreaDef> Areas = new() { AbandonedCity, DrownedCathedral };
+        public static readonly List<AreaDef> Areas = new() { AbandonedCity };
 
         public static AreaDef Area(string id) => Areas.FirstOrDefault(a => a.Id == id);
 

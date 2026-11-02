@@ -38,8 +38,10 @@ Pose names the game uses:
 | `walk` | the party walking in rooms (falls back to the reference pose) |
 | any name in a skill's `Anim` | played while that skill resolves. `Anim = "swing1,swing2"` plays one pose per hit (see `Data/CharacterDb.cs`) |
 
-Current sheets: `relle.json`, `relle_inverted.json` (Elle), `pillow.json`, `bram.json`, `noa.json`, `winter.json`, and `monster.json` (the mock-up monster).
-A sheet can set `"scale"` to draw a character bigger or smaller than normal (Bram uses `1.1`).
+Current sheets: `relle.json`, `relle_inverted.json` (Elle), `pillow.json`, `bram.json` (stand-in for Mara), `noa.json` (stand-in for Elian), `winter.json`, enemies `gnawer.json`, `husk.json` + `husk_curled.json`, `wraith.json`, `wyvern.json`, and `monster.json` (the mock-up monster).
+Art drawn facing **left** can set `"facesLeft": true` (Gnawer, Wyvern) and the game mirrors it.
+An enemy can use different art while roaming rooms: `ExploreArtId` in `Data/EnemyDb.cs` (Husk uses `enemy_husk_curled`).
+A sheet can set `"scale"` to draw a character bigger or smaller than normal (the Warden sheet uses `1.1`).
 
 ### Monster recolours
 
@@ -53,7 +55,8 @@ Any enemy without its own sheet uses `enemy_mockup` (monster.png), recoloured wi
 
 | Where | Id | Size (px) |
 |---|---|---|
-| Combat background | `bg_combat_city`, `bg_combat_cathedral` | 1280 x 500 |
+| Combat background | `Art/Stages/<name>.png`, listed in `Art/Stages/backgrounds.json` (see `Art/Stages/README.md`) | 1280 x 720 or bigger |
+| Particle texture | any id named by a preset's `texture` in `Art/Fx/particles.json` (see `Art/Fx/README.md`) | any, square |
 | Title / hub background | `bg_title`, `bg_hub` | 1280 x 720 |
 | Room tiles | `tile_floor_<area>`, `tile_wall_<area>`, `prop_pillar_<area>` (area = `city` / `cathedral`) | 48 x 48 |
 | Room features | `feature_chest`, `feature_chest_open`, `feature_shrine`, `feature_event`, `feature_portal`, `feature_objective`, `feature_entrance` | 64 x 64 |

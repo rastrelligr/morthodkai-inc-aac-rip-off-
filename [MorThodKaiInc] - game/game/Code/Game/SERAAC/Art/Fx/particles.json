@@ -1,0 +1,154 @@
+{
+  // Combat particle presets. Save the file while the game runs and the next effect uses it.
+  // Every field is optional; see Art/Fx/README.md for what each one does.
+  // "angle" 0 = toward the enemy (flips for enemy attackers), 90 = down, -90 = up.
+  // Colours are [r, g, b] or [r, g, b, alpha] 0-255, blended over the particle's life.
+
+  // ---- Hits
+  "slash": {
+    "count": 16, "life": [0.18, 0.4], "speed": [260, 620], "angle": -15, "spread": 70,
+    "drag": 5, "size": [4, 1], "stretch": [1.6, 0.6], "shape": "streak", "additive": true,
+    "colors": [[255, 255, 255], [255, 190, 198], [234, 79, 89]],
+    "also": ["hit_flash"]
+  },
+  "impact": {
+    "count": 12, "life": [0.2, 0.45], "speed": [120, 360], "spread": 360,
+    "drag": 4, "size": [6, 1], "shape": "diamond", "additive": true, "spin": 360,
+    "colors": [[255, 255, 255], [190, 175, 243], [140, 110, 243]],
+    "also": ["hit_flash"]
+  },
+  "shot": {
+    "count": 10, "life": [0.12, 0.3], "speed": [300, 700], "angle": 0, "spread": 40,
+    "drag": 6, "size": [3, 1], "stretch": [2, 1], "shape": "streak", "additive": true,
+    "colors": [[255, 255, 255], [213, 203, 246]],
+    "also": ["hit_flash"]
+  },
+  "flame": {
+    "count": 22, "life": [0.35, 0.8], "speed": [40, 160], "angle": -90, "spread": 120, "radius": 18,
+    "gravity": -180, "drag": 2, "size": [12, 2], "shape": "circle", "additive": true,
+    "colors": [[140, 110, 243], [234, 43, 119], [59, 57, 65, 0]],
+    "also": ["hit_flash"]
+  },
+  "hex": {
+    "count": 14, "life": [0.4, 0.8], "speed": [30, 120], "spread": 360, "radius": 24,
+    "gravity": -60, "drag": 1.5, "size": [8, 0], "shape": "diamond", "additive": true, "spin": 180,
+    "colors": [[213, 203, 246], [140, 110, 243], [59, 57, 65, 0]],
+    "also": ["ring_violet"]
+  },
+  "bile": {
+    "count": 18, "life": [0.3, 0.7], "speed": [80, 260], "angle": -60, "spread": 120,
+    "gravity": 700, "drag": 1, "size": [7, 3], "shape": "circle",
+    "colors": [[234, 43, 119], [123, 121, 133]]
+  },
+  "hit_flash": {
+    "count": 1, "life": [0.12, 0.12], "speed": [0, 0], "size": [70, 20], "shape": "circle", "additive": true,
+    "colors": [[255, 255, 255], [255, 190, 198, 0]]
+  },
+  "crit": {
+    "count": 26, "life": [0.3, 0.6], "speed": [300, 800], "spread": 360,
+    "drag": 5, "size": [5, 1], "stretch": [2, 0.5], "shape": "streak", "additive": true,
+    "colors": [[255, 255, 255], [234, 43, 119]],
+    "also": ["ring_rose"]
+  },
+  "ring_rose": {
+    "count": 1, "life": [0.35, 0.35], "speed": [0, 0], "size": [20, 190], "shape": "ring", "additive": true,
+    "colors": [[255, 190, 198], [234, 43, 119, 0]]
+  },
+  "ring_violet": {
+    "count": 1, "life": [0.4, 0.4], "speed": [0, 0], "size": [16, 120], "shape": "ring", "additive": true,
+    "colors": [[213, 203, 246], [140, 110, 243, 0]]
+  },
+  "blight_tick": {
+    "count": 8, "life": [0.4, 0.8], "speed": [20, 70], "angle": -90, "spread": 80, "radius": 16,
+    "gravity": -40, "size": [6, 1], "shape": "circle",
+    "colors": [[234, 43, 119], [59, 57, 65, 0]]
+  },
+
+  // ---- Actions starting
+  "cast": {
+    "count": 10, "life": [0.25, 0.45], "speed": [40, 140], "angle": -90, "spread": 140, "radius": 20,
+    "gravity": -80, "size": [5, 0], "shape": "diamond", "additive": true,
+    "colors": [[255, 255, 255], [190, 175, 243]]
+  },
+  "cast_heal": {
+    "count": 14, "life": [0.4, 0.7], "speed": [30, 90], "angle": -90, "spread": 60, "radius": 24,
+    "gravity": -120, "size": [6, 0], "shape": "circle", "additive": true,
+    "colors": [[255, 255, 255], [213, 203, 246]]
+  },
+  "dash": {
+    "count": 14, "life": [0.25, 0.5], "speed": [80, 240], "angle": 180, "spread": 50, "offset": [0, 0],
+    "gravity": 300, "drag": 3, "size": [7, 2], "shape": "square",
+    "colors": [[123, 121, 133, 200], [59, 57, 65, 0]]
+  },
+  "step": {
+    "count": 6, "life": [0.2, 0.4], "speed": [40, 120], "angle": 180, "spread": 90,
+    "gravity": 200, "drag": 3, "size": [5, 1], "shape": "square",
+    "colors": [[123, 121, 133, 180], [59, 57, 65, 0]]
+  },
+
+  // ---- Results
+  "heal": {
+    "count": 18, "life": [0.5, 0.9], "speed": [20, 70], "angle": -90, "spread": 40, "radius": 30,
+    "gravity": -140, "size": [7, 0], "shape": "diamond", "additive": true, "spin": 90,
+    "colors": [[255, 255, 255], [213, 203, 246], [190, 175, 243, 0]]
+  },
+  "cleanse": {
+    "count": 1, "life": [0.4, 0.4], "speed": [0, 0], "size": [20, 150], "shape": "ring", "additive": true,
+    "colors": [[255, 255, 255], [213, 203, 246, 0]]
+  },
+  "status_guard": {
+    "count": 1, "life": [0.45, 0.45], "speed": [0, 0], "size": [140, 90], "shape": "ring", "additive": true,
+    "colors": [[190, 175, 243], [140, 110, 243, 0]]
+  },
+  "status_taunt": {
+    "count": 1, "life": [0.5, 0.5], "speed": [0, 0], "size": [60, 220], "shape": "ring", "additive": true,
+    "colors": [[255, 190, 198], [234, 79, 89, 0]]
+  },
+  "status_blight": {
+    "count": 12, "life": [0.4, 0.8], "speed": [20, 80], "angle": -90, "spread": 120, "radius": 20,
+    "gravity": -50, "size": [7, 1], "shape": "circle",
+    "colors": [[234, 43, 119], [59, 57, 65, 0]]
+  },
+  "status_mark": {
+    "count": 1, "life": [0.5, 0.5], "speed": [0, 0], "size": [120, 50], "shape": "ring", "additive": true,
+    "colors": [[255, 190, 198], [234, 43, 119, 0]]
+  },
+  "status_slow": {
+    "count": 10, "life": [0.5, 0.9], "speed": [10, 40], "angle": 90, "spread": 60, "radius": 26,
+    "gravity": 120, "size": [5, 1], "shape": "diamond", "additive": true,
+    "colors": [[213, 203, 246], [190, 175, 243, 0]]
+  },
+  "status_protected": {
+    "count": 1, "life": [0.45, 0.45], "speed": [0, 0], "size": [60, 110], "shape": "ring", "additive": true,
+    "colors": [[213, 203, 246], [140, 110, 243, 0]]
+  },
+  "status_wall": {
+    "count": 1, "life": [0.5, 0.5], "speed": [0, 0], "size": [90, 140], "shape": "ring", "additive": true,
+    "colors": [[255, 255, 255], [140, 110, 243, 0]],
+    "also": ["cleanse"]
+  },
+
+  // ---- Elian's Threadweaver (Bind, the Wyvern's Binding Coils)
+  "thread": {
+    "count": 14, "life": [0.25, 0.5], "speed": [180, 420], "spread": 360,
+    "drag": 6, "size": [2, 1], "stretch": [3, 1], "shape": "streak", "additive": true,
+    "colors": [[255, 255, 255], [213, 203, 246], [140, 110, 243, 0]],
+    "also": ["ring_violet"]
+  },
+  "feast": {
+    "count": 24, "life": [0.4, 0.7], "speed": [60, 200], "spread": 360, "radius": 10,
+    "gravity": 120, "drag": 2, "size": [6, 1], "shape": "circle",
+    "colors": [[234, 79, 89], [234, 43, 119], [0, 0, 0, 0]],
+    "also": ["ring_rose"]
+  },
+  "death": {
+    "count": 40, "life": [0.5, 1.1], "speed": [40, 260], "spread": 360, "radius": 30,
+    "gravity": -60, "drag": 2, "size": [9, 0], "shape": "square", "spin": 240,
+    "colors": [[123, 121, 133], [59, 57, 65], [0, 0, 0, 0]]
+  },
+  "victory": {
+    "count": 20, "life": [0.6, 1.2], "speed": [60, 180], "angle": -90, "spread": 70,
+    "gravity": 60, "drag": 1, "size": [6, 2], "shape": "diamond", "additive": true, "spin": 200, "delay": 0.2,
+    "colors": [[255, 255, 255], [255, 190, 198], [140, 110, 243, 0]]
+  }
+}

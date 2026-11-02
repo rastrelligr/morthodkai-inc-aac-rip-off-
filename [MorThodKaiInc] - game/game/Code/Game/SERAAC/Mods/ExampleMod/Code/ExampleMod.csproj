@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Builds ExampleMod.dll into the mod's folder (one level up), where the game loads it. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <Nullable>disable</Nullable>
+    <OutDir>$(MSBuildThisFileDirectory)..\</OutDir>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <!-- The game's build folder (or an installed copy of the game). -->
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)..\..\..\bin\Debug\net9.0\</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Private=false: use the game's copies at runtime, don't copy them into the mod. -->
+    <Reference Include="SERAAC" HintPath="$(GameDir)SERAAC.dll" Private="false" />
+    <Reference Include="MonoGame.Framework" HintPath="$(GameDir)MonoGame.Framework.dll" Private="false" />
+  </ItemGroup>
+</Project>

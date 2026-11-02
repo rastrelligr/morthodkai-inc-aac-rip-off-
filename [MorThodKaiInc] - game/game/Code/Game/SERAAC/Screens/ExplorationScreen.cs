@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using MonoGame.Extended.Tweening;
 using SERAAC.Combat;
 using SERAAC.Core;
 using SERAAC.Data;
@@ -21,9 +22,10 @@ namespace SERAAC.Screens
         private static readonly Point RoomOrigin = new(24, 108);
         private const float WalkSpeed = 230f;
         private const float HalfBox = 13f;
+        private const float FeatureReach = TileSize * 1.45f;  // how close counts as "at" a feature (use it, collect, reach)
         private const int SidebarX = 1048;
 
-        private enum Modal { None, Pause, Items, Map, Extract, Event, Message, Dialogue }
+        private enum Modal { None, Pause, Items, Map, Extract, Event, Message, Party }
 
         private readonly TrialRun _run;
         private Profile Profile => Game1.Instance.Profile;
@@ -32,10 +34,27 @@ namespace SERAAC.Screens
         private Vector2 _pos;                                 // pixels, room-local
         private readonly List<Vector2> _trail = new();        // followers walk this path
         private float _walkAnim;
+        private float _stepTimer;   // footstep sounds while walking
+        private bool _moving;
+
+        // Click-to-move: waypoints in room pixels, and whether to use the feature on arrival.
+        private List<Vector2> _path;
+        private bool _interactOnArrive;
 
         private List<Combatant> _pendingEnemies;              // shown in the room right before combat
         private float _encounterTimer;
         private bool _pendingIsEventFight;
+        private Room _pendingRoom;                            // whose enemies the pending fight is (a pursuing pack's home room)
+
+        // Hold-to-walk: after a click in the room, keeping the button down steers toward the cursor.
+        private const float HoldToSteer = 0.2f;
+        private bool _holdSteer;
+        private float _holdTime;
+
+        // A pack that chased the party out of its room and followed it through the door (Pack.Follow).
+        private Pack _pursuit;
+        private Room _pursuitFrom;
+        private int _pursuitDoors;
 
         private float _roomFade;                              // quick fade when changing rooms
         private Room _nextRoom;
@@ -47,24 +66,55 @@ namespace SERAAC.Screens
         private string _messageTitle, _messageBody;
 
         private string _banner;
-        private float _bannerTime;
+        private int _bannerId;
+
+        // Eased UI (MonoGame.Extended Tweener, see Core/Tweens.cs): the banner, the objective panel's glow,
+        // and modals popping in.
+        private readonly Tweens _tweens = new();
+        private readonly Anim _bannerAlpha = new(), _bannerSlide = new(), _flash = new(), _modalIn = new(1f);
+        private readonly Random _rng = new();                 // cosmetic only (where packs stand, idle wander)
         private readonly List<(string text, Vector2 pos, float age, Color color)> _floaters = new();
 
-        public ExplorationScreen(TrialRun run)
+        private readonly Room _startIn;
+        private readonly Fx.Ambience _ambience = new("room_dust");   // playtest: walk straight into this room instead of starting at the entrance
+
+        public ExplorationScreen(TrialRun run, Room startIn = null)
         {
             _run = run;
+            _startIn = startIn;
+        }
+
+        // Arrow keys walk and clicks on the floor move the party: menu sounds only while a menu is open.
+        public override bool MenuKeySounds => _modal != Modal.None;
+        public override bool UiSoundsFor(string key) => _modal != Modal.None || key != "room";
+
+        private bool _storyEnding;
+
+        public override void OnResume()
+        {
+            if (!_storyEnding) return;
+            _storyEnding = false;
+            Story.StoryFlow.OnMainObjective();
         }
 
         public override void OnEnter()
         {
             PlaceAt(RoomLayout.EntryTile(Dir.South), Dir.South);
             ShowBanner($"{_run.Trial.Name}", 2.5f);
+            if (_startIn != null && _startIn != _run.Current && _startIn.Links.Count > 0)
+            {
+                // Enter through one of its doors, like walking in (its pack spawns away from that door).
+                _nextRoom = _startIn;
+                _nextEntry = _startIn.Links.Keys.First();
+            }
         }
 
         // Followers start lined up behind the leader, toward the door the party came through.
         private void PlaceAt(Point tile, Dir cameFrom)
         {
             _pos = new Vector2(tile.X * TileSize + TileSize / 2f, tile.Y * TileSize + TileSize / 2f);
+            _path = null;
+            _interactOnArrive = false;
             _trail.Clear();
             var back = RoomLayout.Step(cameFrom).ToVector2();
             for (int i = 0; i < 40; i++) _trail.Add(_pos + back * Math.Min(i, 30) * (TileSize * 1.05f / 30f));
@@ -72,9 +122,18 @@ namespace SERAAC.Screens
 
         private void ShowBanner(string text, float seconds = 2.2f)
         {
+            // Slides down into place and fades in, holds, then fades out. A newer banner replaces it.
             _banner = text;
-            _bannerTime = seconds;
+            int id = ++_bannerId;
+            _tweens.FromTo(_bannerSlide, 16f, 0f, 0.35f, EasingFunctions.BackOut);
+            _tweens.FromTo(_bannerAlpha, 0f, 1f, 0.18f, EasingFunctions.CubicOut).OnEnd(_ =>
+            {
+                if (id == _bannerId) _tweens.To(_bannerAlpha, 0f, 0.4f, EasingFunctions.QuadraticIn, Math.Max(0f, seconds - 0.6f));
+            });
         }
+
+        // The objective panel glows, then the glow eases away.
+        private void FlashObjective(float seconds) => _tweens.FromTo(_flash, 1f, 0f, seconds, EasingFunctions.SineIn);
 
         private void Float(string text, Vector2 roomPos, Color c) => _floaters.Add((text, roomPos, 0f, c));
 
@@ -82,8 +141,10 @@ namespace SERAAC.Screens
 
         public override void Update(GameTime gameTime)
         {
+            Audio.Music("explore");   // no-op while it's already playing (resumes after a fight)
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            _bannerTime -= dt;
+            _ambience.Update(dt, new Vector2(SidebarX, Game1.Height));
+            _tweens.Update(dt);
             for (int i = _floaters.Count - 1; i >= 0; i--)
             {
                 var f = _floaters[i];
@@ -101,9 +162,9 @@ namespace SERAAC.Screens
                 return;
             }
 
-            if (_modal == Modal.Dialogue)
+            if (_modal == Modal.Party)
             {
-                UpdateDialogue(dt);
+                UpdatePartyView();
                 return;
             }
             if (_modal != Modal.None)
@@ -112,15 +173,29 @@ namespace SERAAC.Screens
                 return;
             }
 
-            if (Input.Pressed(Keys.Escape)) { OpenModal(Modal.Pause); return; }
-            if (Input.Pressed(Keys.I) || Input.Pressed(Keys.Tab)) { OpenModal(Modal.Items); return; }
-            if (Input.Pressed(Keys.M)) { OpenModal(Modal.Map); return; }
+            int member = Ui.ClickedIndex("pmember");
+            if (Input.Pressed(Keys.P) || Ui.Clicked("btn", 3) || member >= 0) { OpenPartyView(Math.Max(0, member)); return; }
+            if (Input.Pressed(Keys.Escape) || Ui.Clicked("btn", 2)) { OpenModal(Modal.Pause); return; }
+            if (Input.Pressed(Keys.I) || Input.Pressed(Keys.Tab) || Ui.Clicked("btn", 0)) { OpenModal(Modal.Items); return; }
+            if (Input.Pressed(Keys.M) || Ui.Clicked("btn", 1) || Ui.Clicked("minimap")) { OpenModal(Modal.Map); return; }
+            if (Input.Click && Ui.IsHover("room"))
+            {
+                var at = Input.MousePos - RoomOrigin.ToVector2();
+                ClickRoom(at);
+                _holdSteer = !IsFeatureTile(TileAt(at));   // holding the button down then steers the party
+                _holdTime = 0;
+            }
+            if (Input.LeftDown) _holdTime += dt; else _holdSteer = false;
             if (Input.Pressed(Keys.F9)) { DebugJump(); return; }
             if (Input.Pressed(Keys.F10)) { DebugWarpTo(RoomType.Extraction); return; }
             if (Input.Pressed(Keys.F8)) { DebugWarpTo(RoomType.Npc); return; }
+            if (Input.Pressed(Keys.F7)) { DebugWarpTo(RoomType.Objective); return; }
+            if (Input.Pressed(Keys.F6)) { DebugFight(); return; }
 
             Walk(dt);
             CollectPickups();
+            if (UpdatePack(dt)) return;
+            UpdateObjectivePoint();
             if (Input.Interact && NearFeature()) Interact();
         }
 
@@ -143,17 +218,51 @@ namespace SERAAC.Screens
 
         private void Walk(float dt)
         {
+            _moving = false;
             var move = Input.Move;
+            // Holding the left button (after a short moment) steers the party straight at the cursor.
+            if (move == Vector2.Zero && _holdSteer && _holdTime > HoldToSteer)
+            {
+                var cursor = Input.MousePos - RoomOrigin.ToVector2();
+                if (Vector2.Distance(cursor, _pos) > 8f) { _path = null; move = cursor - _pos; }
+            }
+            if (move != Vector2.Zero) _path = null;   // keys always win over a click
+            else if (_path != null)
+            {
+                var to = _path[0] - _pos;
+                float step = WalkSpeed * dt;
+                if (to.Length() <= Math.Max(3f, step))
+                {
+                    _path.RemoveAt(0);
+                    if (_path.Count == 0)
+                    {
+                        _path = null;
+                        if (_interactOnArrive && NearFeature()) Interact();
+                        _interactOnArrive = false;
+                        return;
+                    }
+                    to = _path[0] - _pos;
+                }
+                move = to;
+            }
             if (move == Vector2.Zero) return;
             move.Normalize();
             var delta = move * WalkSpeed * dt;
+            if (_path != null && delta.Length() > (_path[0] - _pos).Length()) delta = _path[0] - _pos;
 
             var p = _pos;
             if (!Blocked(p.X + delta.X, p.Y)) p.X += delta.X;
             if (!Blocked(p.X, p.Y + delta.Y)) p.Y += delta.Y;
-            if (p == _pos) return;
+            if (p == _pos)
+            {
+                _path = null;   // stuck on a corner: give up rather than push forever
+                return;
+            }
             _pos = p;
+            _moving = true;
             _walkAnim += dt;
+            _stepTimer -= dt;
+            if (_stepTimer <= 0) { Audio.Play("step", 0.35f, (float)(_rng.NextDouble() * 0.2 - 0.1)); _stepTimer = 0.32f; }
 
             if (Vector2.Distance(_trail[0], _pos) > 4f)
             {
@@ -171,15 +280,117 @@ namespace SERAAC.Screens
             }
         }
 
-        // [debug] F10 / F8: warp next to the feature of an Extraction Point / NPC room.
+        // ------------------------------------------------------------------ click to move
+
+        private static Point TileAt(Vector2 roomPos) => new((int)Math.Floor(roomPos.X / TileSize), (int)Math.Floor(roomPos.Y / TileSize));
+        private static Vector2 TileCenter(Point t) => new(t.X * TileSize + TileSize / 2f, t.Y * TileSize + TileSize / 2f);
+
+        private bool IsFeatureTile(Point t) => Room.HasFeature && t == Room.Layout.Feature;
+        private bool Walkable(Point t) => !Room.Layout.Solid(t.X, t.Y) && !IsFeatureTile(t);
+
+        // Walk to a clicked spot. Clicking the room's feature (chest, shrine, NPC...) walks next to it and uses it.
+        private void ClickRoom(Vector2 roomPos)
+        {
+            var tile = TileAt(roomPos);
+            var from = TileAt(_pos);
+            _interactOnArrive = false;
+            if (IsFeatureTile(tile))
+            {
+                if (NearFeature()) { _path = null; Interact(); return; }
+                _interactOnArrive = true;
+                // Stand on whichever free side of the feature is closest to the party.
+                var sides = new[] { new Point(tile.X, tile.Y + 1), new Point(tile.X, tile.Y - 1), new Point(tile.X - 1, tile.Y), new Point(tile.X + 1, tile.Y) };
+                tile = sides.Where(Walkable).OrderBy(s => Vector2.Distance(TileCenter(s), _pos)).DefaultIfEmpty(from).First();
+            }
+            else if (!Walkable(tile)) return;
+
+            var tiles = FindPath(from, tile);
+            if (tiles == null) return;
+            var points = tiles.Select(TileCenter).ToList();
+            // Stop exactly where the player clicked inside a floor tile (not for doors or features).
+            bool ring = tile.X == 0 || tile.Y == 0 || tile.X == RoomLayout.Cols - 1 || tile.Y == RoomLayout.Rows - 1;
+            if (!_interactOnArrive && !ring && !Blocked(roomPos.X, roomPos.Y)) points[^1] = roomPos;
+            _path = Smooth(points);
+        }
+
+        // Breadth-first search over walkable tiles (4 directions). Null when unreachable.
+        private List<Point> FindPath(Point from, Point to)
+        {
+            if (from == to) return new List<Point> { to };
+            var prev = new Dictionary<Point, Point> { [from] = from };
+            var q = new Queue<Point>();
+            q.Enqueue(from);
+            while (q.Count > 0)
+            {
+                var p = q.Dequeue();
+                if (p == to) break;
+                foreach (var d in RoomLayout.AllDirs)
+                {
+                    var s = RoomLayout.Step(d);
+                    var n = new Point(p.X + s.X, p.Y + s.Y);
+                    if (prev.ContainsKey(n) || !Walkable(n)) continue;
+                    prev[n] = p;
+                    q.Enqueue(n);
+                }
+            }
+            if (!prev.ContainsKey(to)) return null;
+            var path = new List<Point>();
+            for (var c = to; c != from; c = prev[c]) path.Add(c);
+            path.Reverse();
+            return path;
+        }
+
+        // Skips waypoints the party can walk to in a straight line, so paths cut corners naturally.
+        private List<Vector2> Smooth(List<Vector2> points)
+        {
+            var result = new List<Vector2>();
+            var at = _pos;
+            int i = 0;
+            while (i < points.Count)
+            {
+                int far = i;
+                for (int j = points.Count - 1; j > i; j--)
+                    if (ClearLine(at, points[j])) { far = j; break; }
+                result.Add(points[far]);
+                at = points[far];
+                i = far + 1;
+            }
+            return result;
+        }
+
+        private bool ClearLine(Vector2 a, Vector2 b)
+        {
+            float len = Vector2.Distance(a, b);
+            for (float d = 0; d <= len; d += 6f)
+            {
+                var p = Vector2.Lerp(a, b, len < 0.01f ? 1 : d / len);
+                if (Blocked(p.X, p.Y)) return false;
+            }
+            return true;
+        }
+
+        // [debug] F10 / F8 / F7: warp next to the feature of an Extraction Point / NPC room / objective site.
         private void DebugWarpTo(RoomType type)
         {
-            var ex = _run.Map.Rooms.Values.FirstOrDefault(r => r.Type == type);
+            var ex = _run.Map.Rooms.Values.Where(r => r.Type == type).OrderBy(r => r.FeatureUsed || r.Cleared).FirstOrDefault();
             if (ex == null) { ShowBanner($"[debug] no {type} room in this trial", 1.5f); return; }
             ex.Visited = true;
             _debugWarpToFeature = true;
             _nextRoom = ex;
             _nextEntry = ex.Links.Keys.First();
+        }
+
+        // [debug] F6: fight right here, against this room's enemies or the nearest room's (to check combat,
+        // backgrounds and effects without hunting a pack). Counts as an event fight: the rooms stay as they were.
+        private void DebugFight()
+        {
+            var source = Room.HasEnemies ? Room
+                : _run.Map.Rooms.Values.Where(r => r.HasEnemies).OrderBy(r => Math.Abs(r.Depth - Room.Depth)).FirstOrDefault();
+            if (source == null) { ShowBanner("[debug] no enemies left in this trial", 1.5f); return; }
+            _pendingEnemies = _run.BuildEnemyCombatants(source);
+            _pendingIsEventFight = true;
+            _encounterTimer = 0.3f;
+            ShowBanner("[debug] fight!", 0.6f);
         }
 
         // [debug] F9: go through a door, preferring rooms not visited yet.
@@ -203,6 +414,19 @@ namespace SERAAC.Screens
 
         private void ArriveIn(Room room, Dir entry)
         {
+            // Who is chasing the party through this door: the pack of the room it just left, or a pack
+            // already following it. They keep coming for up to Pack.MaxFollow doors.
+            var prev = _run.Current;
+            Room chaserHome = null;
+            int doors = 0;
+            if (_pursuit is { State: PackState.Chase } && _pursuitFrom is { HasEnemies: true })
+                (chaserHome, doors) = (_pursuitFrom, _pursuitDoors + 1);
+            else if (prev != null && prev != room && prev.Pack is { State: PackState.Chase, Guarding: false } && prev.HasEnemies)
+                (chaserHome, doors) = (prev, 1);
+            _pursuit = null;
+            _pursuitFrom = null;
+            _pursuitDoors = 0;
+
             _run.Current = room;
             bool firstVisit = !room.Visited;
             room.Visited = true;
@@ -214,29 +438,121 @@ namespace SERAAC.Screens
                 PlaceAt(room.Layout.Solid(f.X, f.Y + 1) ? new Point(f.X, f.Y - 1) : new Point(f.X, f.Y + 1), Dir.South);
             }
 
-            if (room.IsCombatRoom && !room.Cleared)
+            // Enemies don't attack on entry: they wait somewhere in the room and hunt the party once they see it.
+            room.Pack = null;
+            var leader = room.Type == RoomType.Objective ? _run.Objective?.RoomLeader : null;
+            bool chased = chaserHome != null && doors <= Pack.MaxFollow;
+            if (chased && chaserHome == room)
             {
-                _pendingEnemies = _run.BuildEnemyCombatants(room);
-                _pendingIsEventFight = false;
-                _encounterTimer = 1.0f;
+                // Led them back home: they come through the door right behind the party.
+                room.Pack = Pack.Follow(room, room.Encounter, entry, _rng);
+                ShowBanner("They're right behind you!", 1.6f);
+            }
+            else if (room.HasEnemies)
+            {
+                room.Pack = Pack.Spawn(room, RoomLayout.EntryTile(entry), guarding: leader != null, _rng);
+                if (room.Alerted && leader == null) room.Pack.Alarm();
                 ShowBanner(room.Type switch
                 {
-                    RoomType.Elite => "An elite blocks the way!",
-                    RoomType.Objective => _run.Area.ObjectiveName + "!",
-                    _ => "Ambush!",
-                }, 1.0f);
+                    RoomType.Elite => "An elite prowls this room...",
+                    _ when leader != null => $"{leader.Name} guards this place",
+                    _ when room.Alerted => "They were waiting for you...",
+                    _ => firstVisit ? "Something moves in the dark..." : "They are still here...",
+                }, 1.8f);
             }
+            if (chased && chaserHome != room)
+            {
+                _pursuit = Pack.Follow(room, chaserHome.Encounter, entry, _rng);
+                _pursuitFrom = chaserHome;
+                _pursuitDoors = doors;
+                ShowBanner($"The {chaserHome.Encounter[0].Name} followed you!", 1.6f);
+            }
+            else if (chaserHome != null && !chased)
+                ShowBanner("You lost them... for now.", 1.6f);
+            else if (_run.ObjectivePointOpen(room))
+                ShowBanner("Objective: " + _run.Objective.Thing, 1.8f);
             else if (firstVisit)
             {
                 ShowBanner(room.DisplayName, 1.6f);
             }
         }
 
+        // The room's pack hunts the party; touching one of them starts the fight. True when combat is starting.
+        private bool UpdatePack(float dt)
+        {
+            if (_nextRoom != null) return false;
+            // The room's own pack first, then a pack that followed the party in from another room.
+            foreach (var (pack, home) in new[] { (Room.Pack, Room), (_pursuit, _pursuitFrom) })
+            {
+                if (pack == null || home == null || !home.HasEnemies) continue;
+                var before = pack.State;
+                pack.Update(dt, _pos);
+                if (before != PackState.Alert && pack.State == PackState.Alert) Audio.Play("alert");
+                if (pack.State == PackState.Chase) home.Alerted = true;
+                var hit = pack.Touching(_pos);
+                if (hit == null) continue;
+
+                bool caught = pack.State == PackState.Chase;
+                _path = null;
+                _pendingEnemies = _run.BuildEnemyCombatants(home);
+                _pendingRoom = home;
+                _pendingIsEventFight = false;
+                _encounterTimer = 0.7f;
+                ShowBanner(caught ? $"Caught by the {hit.Def.Name}!" : $"You engage the {hit.Def.Name}!", 1.0f);
+                return true;
+            }
+            return false;
+        }
+
+        // Collect Item / Reach Location complete just by getting next to the room's objective point.
+        private void UpdateObjectivePoint()
+        {
+            if (!_run.ObjectivePointOpen(Room) || !NearFeature()) return;
+            if (_run.Objective.Type == ObjectiveType.Interact) return;  // needs [E]
+            UseObjectivePoint();
+        }
+
+        private void UseObjectivePoint()
+        {
+            var o = _run.Objective;
+            var fc = new Vector2(Room.Layout.Feature.X + 0.5f, Room.Layout.Feature.Y + 0.5f) * TileSize;
+            var result = _run.UseObjectivePoint(Room, Profile);
+            Float(o.Type switch
+            {
+                ObjectiveType.CollectItem => $"Took the {o.Thing}",
+                ObjectiveType.ReachLocation => $"Reached the {o.Thing}",
+                _ => o.Prompt,
+            }, fc, Palette.Accent);
+            ObjectiveFeedback(result);
+        }
+
+        // Feedback for objective progress (design: the player must be told when it completes).
+        private bool ObjectiveFeedback(ObjectiveUpdate update)
+        {
+            var o = _run.Objective;
+            if (update == ObjectiveUpdate.Completed)
+            {
+                var next = o.Main ? WorldDb.Areas.FirstOrDefault(a => a.UnlockedBy == _run.Area.ObjectiveId) : null;
+                ShowBanner("OBJECTIVE COMPLETE  -  extraction unlocked" + (next != null ? $"  -  {next.Name} unlocked" : ""), 4f);
+                Audio.Play("objective");
+                FlashObjective(3f);
+                return true;
+            }
+            if (update == ObjectiveUpdate.Progress)
+            {
+                ShowBanner($"{o.Task}  {_run.ObjectiveProgress} / {o.Count}", 2.2f);
+                FlashObjective(1.5f);
+                return true;
+            }
+            return false;
+        }
+
         private void StartCombat()
         {
             var enemies = _pendingEnemies;
             _pendingEnemies = null;
-            var room = Room;
+            var room = _pendingRoom ?? Room;
+            _pendingRoom = null;
             bool eventFight = _pendingIsEventFight;
             Screens.Push(new CombatScreen(_run, enemies, battle => OnCombatFinished(room, battle, eventFight)));
         }
@@ -251,26 +567,28 @@ namespace SERAAC.Screens
                 return;
             }
 
-            bool wasObjective = room.Type == RoomType.Objective && !_run.ObjectiveCompleted;
+            var objective = _run.RecordKills(battle, Profile);
             if (eventFight)
             {
                 _run.PlaceDrops(room, new List<LootPickup> { _run.EquipmentDrop() });
             }
             else
             {
-                _run.OnCombatWon(room, Profile);
+                // A pack that followed the party is cleared from its own room, but drops its loot here.
+                _run.OnCombatWon(room, lootIn: Room);
+                room.Pack = null;
+                if (room == _pursuitFrom) { _pursuit = null; _pursuitFrom = null; }
             }
             var questsDone = Quests.OnVictory(Profile, room, battle);
             Screens.Pop();
+            // The prologue's last fight: the ending plays once the fight has closed (OnResume).
+            if (objective == ObjectiveUpdate.Completed && _run.Objective?.Main == true && Profile.Story == Story.StoryFlow.Academy)
+                _storyEnding = true;
 
-            if (wasObjective)
-            {
-                var next = WorldDb.Areas.FirstOrDefault(a => a.UnlockedBy == _run.Area.ObjectiveId);
-                ShowBanner("MAIN OBJECTIVE COMPLETE" + (next != null ? $"  -  {next.Name} unlocked" : ""), 4f);
-            }
+            if (objective == ObjectiveUpdate.Completed) ObjectiveFeedback(objective);
             else if (questsDone.Count > 0)
                 ShowBanner($"Quest complete: {string.Join(", ", questsDone)}  -  find the quest giver", 3f);
-            else ShowBanner("Room cleared  -  collect the loot", 1.8f);
+            else if (!ObjectiveFeedback(objective)) ShowBanner("Room cleared  -  collect the loot", 1.8f);
         }
 
         private void CollectPickups()
@@ -282,6 +600,7 @@ namespace SERAAC.Screens
                 if (Vector2.Distance(world, _pos) < TileSize * 0.6f)
                 {
                     string msg = _run.Collect(p);
+                    Audio.Play("pickup");
                     Float(msg, world, p.Kind == LootKind.Shards ? Palette.Unsecured : p.Kind == LootKind.Equipment ? Palette.Guard : Palette.Heal);
                 }
             }
@@ -292,7 +611,7 @@ namespace SERAAC.Screens
             if (!Room.HasFeature) return false;
             var f = Room.Layout.Feature;
             var center = new Vector2(f.X * TileSize + TileSize / 2f, f.Y * TileSize + TileSize / 2f);
-            return Vector2.Distance(center, _pos) < TileSize * 1.45f;
+            return Vector2.Distance(center, _pos) < FeatureReach;
         }
 
         private string FeaturePrompt() => Room.Type switch
@@ -301,8 +620,9 @@ namespace SERAAC.Screens
             RoomType.Treasure => Room.FeatureUsed ? null : "[E] Open the cache",
             RoomType.Rest => Room.FeatureUsed ? null : "[E] Pray at the shrine",
             RoomType.Event => Room.FeatureUsed ? null : "[E] Investigate",
-            RoomType.Extraction => "[E] Extract",
+            RoomType.Extraction => _run.CanExtract ? "[E] Extract" : "[E] Extraction sealed",
             RoomType.Npc when Room.Npc != null => $"[E] Talk to {Room.Npc.Name}",
+            RoomType.Objective when _run.ObjectivePointOpen(Room) && _run.Objective.Type == ObjectiveType.Interact => $"[E] {_run.Objective.Prompt}",
             _ => null,
         };
 
@@ -312,7 +632,7 @@ namespace SERAAC.Screens
             switch (Room.Type)
             {
                 case RoomType.Entrance:
-                    ShowMessage("Sealed Entrance", "The way you came in has closed behind you.\n\nFind an Extraction Point (X on the map) to leave with your loot.");
+                    ShowMessage("Sealed Entrance", "The way you came in has closed behind you.\n\nComplete the objective (top of the screen), then find an Extraction Point (X on the map) to leave with your loot.");
                     break;
                 case RoomType.Treasure when !Room.FeatureUsed:
                     Room.FeatureUsed = true;
@@ -329,21 +649,31 @@ namespace SERAAC.Screens
                 case RoomType.Event when !Room.FeatureUsed:
                     OpenModal(Modal.Event);
                     break;
+                case RoomType.Extraction when !_run.CanExtract:
+                    ShowMessage("Extraction Sealed", "The way out will not open until this layer's objective is complete.\n\n" + ObjectiveStatusText());
+                    break;
                 case RoomType.Extraction:
                     OpenModal(Modal.Extract);
                     break;
                 case RoomType.Npc when Room.Npc != null:
                     StartDialogue(Room.Npc);
                     break;
+                case RoomType.Objective when _run.ObjectivePointOpen(Room) && _run.Objective.Type == ObjectiveType.Interact:
+                    UseObjectivePoint();
+                    break;
             }
         }
 
-        // ------------------------------------------------------------------ dialogue
+        private string ObjectiveStatusText()
+        {
+            var o = _run.Objective;
+            if (o == null) return "No objective in this trial.";
+            string progress = o.Count > 1 ? $"  ({_run.ObjectiveProgress} / {o.Count})" : "";
+            string where = o.RoomCount > 0 ? "\n\nObjective sites are marked * on the map." : "";
+            return $"Objective: {o.Name}\n{o.Task}{progress}{where}";
+        }
 
-        private NpcDef _talkingTo;
-        private DialogueNode _node;
-        private float _typed;                 // characters revealed so far (typewriter)
-        private const float TypeSpeed = 60f;  // characters per second
+        // ------------------------------------------------------------------ dialogue
 
         private DialogueContext DialogueCtx => new()
         {
@@ -352,49 +682,43 @@ namespace SERAAC.Screens
             Notify = msg => ShowBanner(msg, 3f),
         };
 
+        // NPC conversations play as a visual-novel scene over the room: the NPC's background (else the room's own,
+        // like a fight here), typewriter text, choices, and the backlog / auto / skip controls.
         private void StartDialogue(NpcDef npc)
         {
-            _talkingTo = npc;
             Room.FeatureUsed = true;
-            OpenModal(Modal.Dialogue);
-            GoToNode(npc.Entry(DialogueCtx));
+            var ctx = DialogueCtx;
+            StoryScreen screen = null;
+            VnLine Line(string id)
+            {
+                if (id == "end" || !npc.Nodes.TryGetValue(id, out var node)) return null;
+                var line = new VnLine { Speaker = npc.Name, TextFn = () => node.TextFor(ctx), Background = node.Background };
+                line.OnShow = () =>
+                {
+                    node.OnEnter?.Invoke(ctx);
+                    // Choices are read after the node's effects, so they reflect them.
+                    line.Choices = node.Choices.Where(c => c.If == null || c.If(ctx))
+                        .Select(c => new VnChoice(c.Label, () =>
+                        {
+                            var next = Line(c.Next);
+                            if (next != null) screen.Dialogue.Insert(new[] { next });
+                        })).ToList();
+                };
+                return line;
+            }
+            var first = Line(npc.Entry(ctx));
+            if (first == null) return;
+            string bg = npc.Background ?? RoomBackground();
+            screen = new StoryScreen(new[] { first }, null, bg == "none" ? null : bg);
+            Screens.PushInstant(screen);
         }
 
-        private void GoToNode(string id)
+        // This room's background: the one it already has, else one picked like a normal fight in this area.
+        private string RoomBackground()
         {
-            if (id == "end" || !_talkingTo.Nodes.TryGetValue(id, out var node))
-            {
-                _modal = Modal.None;
-                _talkingTo = null;
-                return;
-            }
-            _node = node;
-            _typed = 0;
-            _modalIndex = 0;
-            node.OnEnter?.Invoke(DialogueCtx);
-        }
-
-        private List<DialogueChoice> VisibleChoices() =>
-            _node.Choices.Where(c => c.If == null || c.If(DialogueCtx)).ToList();
-
-        private void UpdateDialogue(float dt)
-        {
-            string text = _node.TextFor(DialogueCtx);
-            _typed += dt * TypeSpeed * (Input.FastForward ? 3 : 1);
-            if (_typed < text.Length)
-            {
-                if (Input.Confirm) _typed = text.Length;
-                return;
-            }
-            var choices = VisibleChoices();
-            if (choices.Count == 0)
-            {
-                if (Input.Confirm || Input.Cancel) GoToNode("end");
-                return;
-            }
-            if (Input.Up) _modalIndex = (_modalIndex + choices.Count - 1) % choices.Count;
-            if (Input.DownKey) _modalIndex = (_modalIndex + 1) % choices.Count;
-            if (Input.Confirm) GoToNode(choices[_modalIndex].Next);
+            if (Room.StageId == null)
+                Room.StageId = Stage.BackgroundDb.Pick(_run.Area.Id, _run.Trial.Id, "normal", Array.Empty<string>(), new Random())?.Image;
+            return Room.StageId;
         }
 
         private void ShowMessage(string title, string body)
@@ -406,6 +730,8 @@ namespace SERAAC.Screens
 
         private void OpenModal(Modal m)
         {
+            // Pop in when a box opens over the room; going from one box to another (Pause -> How to Play) pops too.
+            _tweens.FromTo(_modalIn, 0f, 1f, 0.22f, EasingFunctions.BackOut);
             _modal = m;
             _modalIndex = 0;
         }
@@ -414,7 +740,7 @@ namespace SERAAC.Screens
 
         private int ModalOptionCount => _modal switch
         {
-            Modal.Pause => 3,
+            Modal.Pause => 4,
             Modal.Extract => 2,
             Modal.Event => Room.Event.Options.Count,
             Modal.Items => Math.Max(1, _run.Consumables.Distinct().Count()),
@@ -427,20 +753,24 @@ namespace SERAAC.Screens
             if (Input.Up) _modalIndex = (_modalIndex + n - 1) % n;
             if (Input.DownKey) _modalIndex = (_modalIndex + 1) % n;
 
-            bool close = Input.Cancel || (_modal == Modal.Map && Input.Pressed(Keys.M)) ||
+            bool clicked = Ui.Pick("opt", ref _modalIndex);
+            // A click outside the box closes it (the map closes on any click).
+            bool clickedAway = Input.Click && !clicked && (_modal == Modal.Map || Ui.Hover("optbox") < 0);
+            bool close = Input.Cancel || clickedAway || (_modal == Modal.Map && Input.Pressed(Keys.M)) ||
                          (_modal == Modal.Items && (Input.Pressed(Keys.I) || Input.Pressed(Keys.Tab)));
             if (close && _modal != Modal.Event)
             {
                 _modal = Modal.None;
                 return;
             }
-            if (!Input.Confirm) return;
+            if (!Input.Confirm && !clicked) return;
 
             switch (_modal)
             {
                 case Modal.Pause:
                     if (_modalIndex == 0) _modal = Modal.None;
                     else if (_modalIndex == 1) ShowMessage("How to Play", MainMenuScreen.HelpText);
+                    else if (_modalIndex == 2) { _modal = Modal.None; Screens.PushInstant(new OptionsScreen()); }
                     else
                     {
                         // Abandoning counts as a failed trial: unsecured loot is lost.
@@ -450,7 +780,7 @@ namespace SERAAC.Screens
                     break;
 
                 case Modal.Extract:
-                    if (_modalIndex == 0)
+                    if (_modalIndex == 0 && _run.CanExtract)
                     {
                         _run.Extract(Profile);
                         Screens.Replace(new ResultScreen(_run, extracted: true));
@@ -468,6 +798,7 @@ namespace SERAAC.Screens
                     var item = ItemDb.GetConsumable(ids[_modalIndex]);
                     if (_run.UseConsumable(item.Id))
                     {
+                        Audio.Play("item");
                         Float($"Used {item.Name}", _pos, Palette.Heal);
                         _modal = Modal.None;
                     }
@@ -536,18 +867,17 @@ namespace SERAAC.Screens
             double t = gameTime.TotalGameTime.TotalSeconds;
             DrawTopBar(sb);
             DrawRoom(sb, t);
+            _ambience.DrawFront(sb, new Rectangle(0, RoomOrigin.Y, SidebarX, Game1.Height - RoomOrigin.Y), Core.Draw.FrameTransform);
             DrawSidebar(sb, t);
 
             if (_roomFade > 0)
-                Core.Draw.Rect(sb, new Rectangle(RoomOrigin.X, RoomOrigin.Y, RoomLayout.Cols * TileSize, RoomLayout.Rows * TileSize), Color.Black * _roomFade);
+                Core.Draw.Rect(sb, new Rectangle(RoomOrigin.X, RoomOrigin.Y, RoomLayout.Cols * TileSize, RoomLayout.Rows * TileSize), Palette.Ink * _roomFade);
 
-            if (_bannerTime > 0 && _banner != null)
+            if (_banner != null && _bannerAlpha.Value > 0.01f)
             {
-                float a = MathHelper.Clamp(_bannerTime * 2f, 0, 1);
-                var center = new Vector2(RoomOrigin.X + RoomLayout.Cols * TileSize / 2f, RoomOrigin.Y + 60);
-                var size = Assets.Header.MeasureString(_banner);
-                Core.Draw.Rect(sb, center.X - size.X / 2 - 20, center.Y - 22, size.X + 40, 44, Color.Black * 0.7f * a);
-                Core.Draw.TextCentered(sb, Assets.Header, _banner, center, Palette.Accent * a);
+                float a = MathHelper.Clamp(_bannerAlpha.Value, 0, 1);
+                var center = new Vector2(RoomOrigin.X + RoomLayout.Cols * TileSize / 2f, RoomOrigin.Y + 60 - _bannerSlide.Value);
+                Ui.Banner(sb, _banner, center, RoomLayout.Cols * TileSize, Palette.Rose, a, Assets.Header, 48f, 1.5f);
             }
 
             DrawModal(sb, t);
@@ -555,20 +885,72 @@ namespace SERAAC.Screens
 
         private void DrawTopBar(SpriteBatch sb)
         {
-            Core.Draw.Text(sb, Assets.Header, _run.Trial.Name.ToUpper(), new Vector2(24, 14), Palette.Accent);
-            Core.Draw.Text(sb, Assets.Small, $"{_run.Area.Name}   -   {Room.DisplayName}   -   depth {Room.Depth}", new Vector2(24, 44), Palette.TextDim);
+            Core.Draw.Ornament(sb, new Vector2(30, 27), 14, Palette.Paper * 0.85f);
+            Core.Draw.Text(sb, Assets.Header, _run.Trial.Name.ToUpper(), new Vector2(48, 14), Palette.Paper);
+            Core.Draw.Text(sb, Assets.Small, $"{_run.Area.Name}   -   {Room.DisplayName}   -   depth {Room.Depth}", new Vector2(48, 44), Palette.TextDim);
 
-            var box = new Rectangle(560, 12, 700, 80);
-            Core.Draw.Panel(sb, box, new Color(40, 22, 18), Palette.Unsecured);
-            Core.Draw.Text(sb, Assets.Small, "TRIAL LOOT  (unsecured - lost if the party falls)", new Vector2(box.X + 14, box.Y + 8), Palette.Unsecured);
+            DrawObjectivePanel(sb, new Rectangle(548, 12, 344, 80));
+
+            var box = new Rectangle(900, 12, 360, 80);
+            Core.Draw.Panel(sb, box, Palette.EnemyTag, Palette.Unsecured);
+            Core.Draw.Text(sb, Assets.Small, "TRIAL LOOT  (lost if the party falls)", new Vector2(box.X + 14, box.Y + 8), Palette.Unsecured);
             Core.Draw.Text(sb, Assets.Header, $"{_run.TrialShards} shards", new Vector2(box.X + 14, box.Y + 32), Palette.Text);
-            Core.Draw.Text(sb, Assets.Body, $"{_run.FoundEquipment.Count} equipment   {_run.Consumables.Count} items",
-                new Vector2(box.X + 250, box.Y + 38), Palette.Text);
-            Core.Draw.TextRight(sb, Assets.Small, $"secured: {Profile.SecuredShards}", new Vector2(box.Right - 14, box.Y + 8), Palette.Accent);
-            if (_run.ObjectiveCompleted)
-                Core.Draw.TextRight(sb, Assets.Small, "Main Objective complete", new Vector2(box.Right - 14, box.Y + 54), Palette.Heal);
+            Core.Draw.TextRight(sb, Assets.Small, $"{_run.FoundEquipment.Count} equipment   {_run.Consumables.Count} items",
+                new Vector2(box.Right - 14, box.Y + 56), Palette.Text);
+            Core.Draw.TextRight(sb, Assets.Small, $"secured: {Profile.SecuredShards}", new Vector2(box.Right - 14, box.Y + 32), Palette.Accent);
 
-            Core.Draw.Text(sb, Assets.Small, "WASD move   E interact   I items   M map   Esc menu", new Vector2(24, 74), Palette.TextDim);
+            // Clickable shortcuts (keys still work: P, I, M, Esc). Button ids: 0 items, 1 map, 2 menu, 3 party.
+            var buttons = new[] { (3, "Party (P)"), (0, "Items (I)"), (1, "Map (M)"), (2, "Menu (Esc)") };
+            for (int i = 0; i < buttons.Length; i++)
+                Ui.Button(sb, "btn", buttons[i].Item1, new Rectangle(24 + i * 104, 66, 98, 28), buttons[i].Item2, font: Assets.Small);
+            Ui.HelpButton(sb, new Vector2(458, 80), "Walk: click a spot, hold the button to steer, or WASD / arrows.\nUse chests, shrines and the Extraction Point: click them or E.\nParty P, Items I, Map M, Menu Esc.\nEnemies hunt you once they spot you; touching one starts the fight.");
+        }
+
+        // Shown from the moment the trial starts: what to do, progress, and whether extraction is open.
+        private void DrawObjectivePanel(SpriteBatch sb, Rectangle box)
+        {
+            var o = _run.Objective;
+            bool done = _run.ObjectiveCompleted;
+            var edge = done ? Palette.Heal : Palette.Accent;
+            Core.Draw.Panel(sb, box, Palette.Panel, edge);
+            if (_flash.Value > 0.01f)
+                Core.Draw.Border(sb, box, edge * MathHelper.Clamp(_flash.Value, 0, 1), 3);
+
+            if (o == null)
+            {
+                Core.Draw.Text(sb, Assets.Small, "OBJECTIVE", new Vector2(box.X + 14, box.Y + 8), Palette.TextDim);
+                Core.Draw.Text(sb, Assets.Body, "None  -  extract any time", new Vector2(box.X + 14, box.Y + 34), Palette.Text);
+                return;
+            }
+            Icons.Draw(sb, "ui_objective", new Rectangle(box.X + 10, box.Y + 6, 18, 18));
+            Core.Draw.Text(sb, Assets.Small, o.Main ? "OBJECTIVE  (main)" : "OBJECTIVE", new Vector2(box.X + 32, box.Y + 8), Palette.TextDim);
+            Core.Draw.TextRight(sb, Assets.Small, done ? "COMPLETE" : o.Count > 1 ? $"{_run.ObjectiveProgress} / {o.Count}" : "",
+                new Vector2(box.Right - 14, box.Y + 8), done ? Palette.Heal : Palette.Accent);
+            Core.Draw.Text(sb, Assets.Body, o.Name, new Vector2(box.X + 14, box.Y + 30), done ? Palette.Heal : Palette.Text);
+            Core.Draw.Text(sb, Assets.Small, done ? "Extraction open  -  extract, or keep looting" : o.Task + "  -  extraction sealed",
+                new Vector2(box.X + 14, box.Y + 56), done ? Palette.Heal : Palette.TextDim);
+        }
+
+        private void DrawPack(SpriteBatch sb, Pack pack, double t)
+        {
+            foreach (var m in pack.Members.OrderBy(m => m.Pos.Y))
+            {
+                var c = ToScreen(m.Pos);
+                float scale = m.Def.Scale;
+                int w = (int)(34 * scale), h = (int)(50 * scale);
+                float step = m.Moving ? (float)Math.Abs(Math.Sin(m.Anim * 11)) * 3 : 0;
+                Figures.Unit(sb, m.Def.ExploreArt, null, new Rectangle((int)c.X - w / 2, (int)(c.Y + 8 - h - step), w, h), m.Def.Color,
+                    m.FaceLeft, t * 3, bob: !m.Moving, pose: m.Moving ? "walk" : null, fallbackSprite: EnemyDb.MockupSprite);
+            }
+            // No Type badges here on purpose: the player learns what is chasing the party when the fight starts.
+            if (pack.State == PackState.Alert || pack.State == PackState.Chase && pack.StateTime < 0.6f)
+            {
+                var lead = ToScreen(pack.Members[0].Pos);
+                // The moment they notice the party: a red ring bursts out from the one who spotted the party.
+                float burst = pack.State == PackState.Alert ? MathHelper.Clamp(pack.StateTime / Pack.NoticeDelay, 0, 1) : 1f;
+                Core.Draw.Ellipse(sb, lead + new Vector2(0, 6), new Vector2(14 + burst * 46, 6 + burst * 18), Palette.Danger * (1f - burst * 0.85f), 3);
+                Core.Draw.TextCentered(sb, Assets.Header, "!", lead + new Vector2(0, -58 * pack.Members[0].Def.Scale + (float)Math.Sin(t * 20) * 2), Palette.Danger);
+            }
         }
 
         private void DrawRoom(SpriteBatch sb, double t)
@@ -610,7 +992,7 @@ namespace SERAAC.Screens
 
                     if (tile == Tile.Pillar && !Core.Draw.Art(sb, pillarArt, r, t))
                     {
-                        Core.Draw.Rect(sb, new Rectangle(r.X + 6, r.Bottom - 6, r.Width - 8, 6), Color.Black * 0.35f);
+                        Core.Draw.Rect(sb, new Rectangle(r.X + 6, r.Bottom - 6, r.Width - 8, 6), Palette.Ink * 0.35f);
                         Core.Draw.Rect(sb, new Rectangle(r.X + 4, r.Y + 8, r.Width - 8, r.Height - 12), Color.Lerp(area.Wall, area.Floor, 0.35f));
                         Core.Draw.Rect(sb, new Rectangle(r.X + 4, r.Y + 2, r.Width - 8, 10), Color.Lerp(area.Floor, Color.White, 0.22f));
                     }
@@ -618,12 +1000,18 @@ namespace SERAAC.Screens
             }
 
             DrawMinimapHintOnDoors(sb);
+            var roomRect = new Rectangle(RoomOrigin.X, RoomOrigin.Y, RoomLayout.Cols * TileSize, RoomLayout.Rows * TileSize);
+            Ui.Hit("room", roomRect);
+            DrawCursor(sb, roomRect, t);
             if (Room.HasFeature) DrawFeature(sb, t);
 
             foreach (var p in Room.Pickups.Where(p => !p.Collected)) DrawPickup(sb, p, t);
 
-            if (_pendingEnemies != null)
+            if (_pursuit != null && _pursuitFrom is { HasEnemies: true }) DrawPack(sb, _pursuit, t);
+            if (Room.Pack != null && Room.HasEnemies) DrawPack(sb, Room.Pack, t);
+            else if (_pendingEnemies != null && _pendingRoom == null)
             {
+                // Fights with no pack (an event gone wrong) appear in a line right before combat.
                 for (int i = 0; i < _pendingEnemies.Count; i++)
                 {
                     var e = _pendingEnemies[i];
@@ -642,17 +1030,41 @@ namespace SERAAC.Screens
                 Core.Draw.TextCentered(sb, Assets.Body, f.text, ToScreen(f.pos) + new Vector2(0, -30 - f.age * 30), f.color * a);
             }
 
-            if (_modal == Modal.None && _pendingEnemies == null && NearFeature())
+            bool hoverFeature = _modal == Modal.None && Ui.IsHover("room") && IsFeatureTile(TileAt(Input.MousePos - RoomOrigin.ToVector2()));
+            if (_modal == Modal.None && _pendingEnemies == null && (NearFeature() || hoverFeature))
             {
-                string prompt = FeaturePrompt();
+                string prompt = FeaturePrompt()?.Replace("[E]", NearFeature() ? "[E / click]" : "[click]");
                 if (prompt != null)
                 {
                     var fp = ToScreen(new Vector2(Room.Layout.Feature.X + 0.5f, Room.Layout.Feature.Y) * TileSize);
                     var size = Assets.Body.MeasureString(prompt);
-                    Core.Draw.Rect(sb, fp.X - size.X / 2 - 8, fp.Y - 34, size.X + 16, 28, Color.Black * 0.75f);
+                    Core.Draw.Rect(sb, fp.X - size.X / 2 - 8, fp.Y - 34, size.X + 16, 28, Palette.Ink * 0.75f);
                     Core.Draw.TextCentered(sb, Assets.Body, prompt, fp + new Vector2(0, -20), Palette.Accent);
                 }
             }
+        }
+
+        // Tile outline under the mouse, plus the path the party will take.
+        private void DrawCursor(SpriteBatch sb, Rectangle roomRect, double t)
+        {
+            if (_path != null)
+            {
+                var from = ToScreen(_pos);
+                foreach (var p in _path)
+                {
+                    var to = ToScreen(p);
+                    Core.Draw.Line(sb, from, to, Palette.Lilac300 * 0.35f, 2);
+                    from = to;
+                }
+                Core.Draw.Diamond(sb, from, 10, Palette.Lilac300 * 0.8f);
+            }
+            if (_modal != Modal.None || _pendingEnemies != null || !Ui.IsHover("room")) return;
+            var tile = TileAt(Input.MousePos - RoomOrigin.ToVector2());
+            if (!IsFeatureTile(tile) && !Walkable(tile)) return;
+            var r = new Rectangle(RoomOrigin.X + tile.X * TileSize, RoomOrigin.Y + tile.Y * TileSize, TileSize, TileSize);
+            var col = IsFeatureTile(tile) ? Palette.Accent : Palette.Lilac300;
+            Core.Draw.Rect(sb, r, col * 0.12f);
+            Core.Draw.Border(sb, r, col * (0.5f + 0.2f * (float)Math.Sin(t * 5)), 2);
         }
 
         private static Color Draw_Darken(Color c, float amount) =>
@@ -689,13 +1101,22 @@ namespace SERAAC.Screens
                     Core.Draw.TextCentered(sb, Assets.Header, "!", new Vector2(r.Center.X, r.Y - 30 + (float)Math.Sin(t * 5) * 3), Palette.Accent);
                 return;
             }
+            // Objective rooms: art per objective type, e.g. feature_objective_collect / feature_objective_collect_done.
+            var objType = _run.Objective?.Type ?? ObjectiveType.DefeatTarget;
+            bool objDone = objType == ObjectiveType.DefeatTarget ? Room.Cleared : Room.FeatureUsed;
             string art = Room.Type switch
             {
                 RoomType.Treasure => Room.FeatureUsed ? "feature_chest_open" : "feature_chest",
                 RoomType.Rest => "feature_shrine",
                 RoomType.Event => "feature_event",
-                RoomType.Extraction => "feature_portal",
-                RoomType.Objective => "feature_objective",
+                RoomType.Extraction => _run.CanExtract ? "feature_portal" : "feature_portal_sealed",
+                RoomType.Objective when objType == ObjectiveType.DefeatTarget => "feature_objective",
+                RoomType.Objective => "feature_objective_" + objType switch
+                {
+                    ObjectiveType.CollectItem => "collect",
+                    ObjectiveType.Interact => "interact",
+                    _ => "reach",
+                } + (objDone ? "_done" : ""),
                 RoomType.Entrance => "feature_entrance",
                 _ => null,
             };
@@ -717,16 +1138,50 @@ namespace SERAAC.Screens
                     Core.Draw.Rect(sb, new Rectangle(r.X + 20, r.Y + 16, 8, 8), new Color(220, 40, 50) * (Room.FeatureUsed ? 0.3f : pulse));
                     break;
                 case RoomType.Extraction:
+                    // Sealed (grey, still) until the objective is complete.
+                    bool open = _run.CanExtract;
+                    // An upright oval portal: open = rings swirl outward, sealed = still grey rings crossed out.
+                    var pc = new Vector2(r.Center.X, r.Center.Y - 4);
                     for (int i = 0; i < 4; i++)
                     {
-                        int inset = i * 5 + (int)(pulse * 3);
-                        Core.Draw.Border(sb, new Rectangle(r.X - 6 + inset, r.Y - 12 + inset, r.Width + 12 - inset * 2, r.Height + 18 - inset * 2), Palette.Accent * (1f - i * 0.2f), 2);
+                        float ring = open ? (float)((t * 0.8 + i * 0.25) % 1.0) : i * 0.25f;
+                        var rad = new Vector2(10 + 16 * ring, 16 + 22 * ring);
+                        float fade = open ? 1f - ring * 0.8f : 0.8f - i * 0.15f;
+                        Core.Draw.Ellipse(sb, pc, rad, (open ? Palette.Accent : Palette.TextDisabled) * fade, 2);
+                    }
+                    if (!open)
+                    {
+                        Core.Draw.Line(sb, pc + new Vector2(-20, -28), pc + new Vector2(20, 28), Palette.TextDisabled, 2);
+                        Core.Draw.Line(sb, pc + new Vector2(20, -28), pc + new Vector2(-20, 28), Palette.TextDisabled, 2);
                     }
                     break;
-                case RoomType.Objective:
+                case RoomType.Objective when objType == ObjectiveType.DefeatTarget:
                     var heart = Room.Cleared ? new Color(70, 40, 50) : new Color(170, 30, 60);
                     int grow = Room.Cleared ? 0 : (int)(pulse * 6);
                     Core.Draw.Rect(sb, new Rectangle(r.X + 6 - grow, r.Y + 6 - grow, 36 + grow * 2, 36 + grow * 2), heart);
+                    break;
+                case RoomType.Objective:
+                    // Placeholder objective point: a plinth with a glowing marker until it's been taken / used / reached.
+                    if (!objDone) Core.Draw.Rect(sb, new Rectangle(r.X - 4, r.Y - 6, r.Width + 8, r.Height + 10), Palette.Accent * (0.12f + 0.12f * pulse));
+                    // Collect / Reach trigger by proximity: the ring on the floor is that range (see NearFeature).
+                    if (!objDone && objType != ObjectiveType.Interact)
+                        Core.Draw.Circle(sb, r.Center.ToVector2(), FeatureReach, Palette.Accent * (0.35f + 0.25f * pulse), 2, 40);
+                    Core.Draw.Rect(sb, new Rectangle(r.X + 8, r.Y + 22, 32, 22), new Color(70, 66, 80));
+                    Core.Draw.Rect(sb, new Rectangle(r.X + 8, r.Y + 22, 32, 4), new Color(110, 104, 124));
+                    var mark = new Vector2(r.Center.X, r.Y + 10 - (objDone ? 0 : pulse * 4));
+                    if (objType == ObjectiveType.CollectItem)
+                    {
+                        if (!objDone) Core.Draw.Diamond(sb, mark, 14, Palette.Accent);
+                    }
+                    else if (objType == ObjectiveType.Interact)
+                        Core.Draw.Rect(sb, new Rectangle(r.Center.X - 7, r.Y - 4, 14, 26), objDone ? Palette.TextDisabled : Palette.Accent);
+                    else
+                    {
+                        Core.Draw.Rect(sb, new Rectangle(r.Center.X - 2, r.Y - 18, 4, 40), new Color(150, 140, 130));
+                        Core.Draw.Rect(sb, new Rectangle(r.Center.X + 2, r.Y - 18, 16, 10), objDone ? Palette.Heal : Palette.Accent);
+                    }
+                    if (!objDone)
+                        Core.Draw.TextCentered(sb, Assets.Header, "*", new Vector2(r.Center.X, r.Y - 34 + (float)Math.Sin(t * 4) * 3), Palette.Accent);
                     break;
                 case RoomType.Entrance:
                     Core.Draw.Rect(sb, new Rectangle(r.X + 4, r.Y + 4, 40, 40), new Color(20, 16, 22));
@@ -756,7 +1211,7 @@ namespace SERAAC.Screens
                 int s = (int)(36 * pop);
                 Icons.Draw(sb, p.ItemId, new Rectangle((int)c.X - s / 2, (int)(c.Y + bob) - s / 2, s, s));
             }
-            Core.Draw.Rect(sb, new Rectangle((int)c.X - 6, (int)(c.Y + 14), 12, 4), Color.Black * 0.3f);
+            Core.Draw.Rect(sb, new Rectangle((int)c.X - 6, (int)(c.Y + 14), 12, 4), Palette.Ink * 0.3f);
         }
 
         private void DrawParty(SpriteBatch sb, double t)
@@ -773,9 +1228,11 @@ namespace SERAAC.Screens
             foreach (var (m, pos) in drawList.Select((d, i) => (d, i)).OrderBy(x => x.d.pos.Y).ThenByDescending(x => x.i).Select(x => x.d))
             {
                 var s = ToScreen(pos);
-                bool moving = Input.Move != Vector2.Zero && _modal == Modal.None;
+                bool moving = _moving && _modal == Modal.None;
                 float step = moving ? (float)Math.Abs(Math.Sin(_walkAnim * 12)) * 3 : 0;
-                Figures.Unit(sb, m.Def.ArtId, m.Def.Role.Substring(0, 1),
+                // Their overworld sprite (Art/Overworld/<id>.png) when they have one, else the combat sheet.
+                string art = Sprites.Get("Overworld/" + m.Def.Id) != null ? "Overworld/" + m.Def.Id : m.Def.ArtId;
+                Figures.Unit(sb, art, m.Def.Role.Substring(0, 1),
                     new Rectangle((int)s.X - 15, (int)(s.Y - 44 - step), 30, 50), m.Def.Color, false, t, bob: false, pose: "walk");
             }
         }
@@ -784,12 +1241,13 @@ namespace SERAAC.Screens
         {
             var panel = new Rectangle(SidebarX, 108, 216, 576);
             Core.Draw.Panel(sb, panel);
-            Core.Draw.Text(sb, Assets.Small, "PARTY", new Vector2(panel.X + 10, panel.Y + 8), Palette.TextDim);
+            Ui.SectionBar(sb, new Rectangle(panel.X + 6, panel.Y + 6, panel.Width - 12, 20), "Party  (click to manage)");
             for (int i = 0; i < _run.Party.Count; i++)
             {
                 var m = _run.Party[i];
                 var r = new Rectangle(panel.X + 8, panel.Y + 28 + i * 58, panel.Width - 16, 52);
-                Core.Draw.Rect(sb, r, Palette.PanelLight * 0.6f);
+                Ui.Card(sb, r, false);
+                if (_modal == Modal.None) Ui.HoverRow(sb, "pmember", i, r, false);
                 Figures.Portrait(sb, m.Def, new Rectangle(r.X + 4, r.Y + 4, 30, 44), t, m.Fallen ? 0.3f : 1f);
                 Core.Draw.Text(sb, Assets.Small, m.Def.Name, new Vector2(r.X + 40, r.Y + 4), m.Fallen ? Palette.TextDisabled : Palette.Text);
                 if (m.Fallen) Core.Draw.Text(sb, Assets.Small, "FALLEN", new Vector2(r.X + 40, r.Y + 26), Palette.Danger);
@@ -797,8 +1255,11 @@ namespace SERAAC.Screens
             }
 
             var mapArea = new Rectangle(panel.X + 8, panel.Y + 270, panel.Width - 16, 296);
-            Core.Draw.Text(sb, Assets.Small, "MAP", new Vector2(mapArea.X + 2, mapArea.Y - 6), Palette.TextDim);
-            DrawMap(sb, new Rectangle(mapArea.X, mapArea.Y + 14, mapArea.Width, mapArea.Height - 60), 22);
+            Ui.SectionBar(sb, new Rectangle(mapArea.X - 4, mapArea.Y - 8, mapArea.Width + 8, 20), "Map  (click to enlarge)");
+            var mini = new Rectangle(mapArea.X, mapArea.Y + 14, mapArea.Width, mapArea.Height - 60);
+            if (Ui.IsHover("minimap")) Core.Draw.Rect(sb, mini, Palette.Hover * 0.6f);
+            DrawMap(sb, mini, 22);
+            Ui.Hit("minimap", mini);
             Core.Draw.Text(sb, Assets.Small, "X extract  * objective\n! elite  $ cache  + shrine\n? event  @ someone", new Vector2(mapArea.X + 2, mapArea.Bottom - 50), Palette.TextDim);
         }
 
@@ -824,29 +1285,185 @@ namespace SERAAC.Screens
             {
                 var c = Pos(r);
                 var rect = new Rectangle((int)(c.X - cell / 2f), (int)(c.Y - cell / 2f), cell, cell);
-                var fill = r == Room ? Palette.Accent : r.Visited ? (r.Cleared || !r.IsCombatRoom ? Palette.PanelLight : new Color(90, 40, 40)) : new Color(30, 26, 34);
+                var fill = r == Room ? Palette.Accent : r.Visited ? (r.Cleared || !r.IsCombatRoom ? Palette.PanelLight : Palette.EnemyTag) : Palette.PanelDark;
                 Core.Draw.Rect(sb, rect, fill);
                 Core.Draw.Border(sb, rect, r.Type == RoomType.Extraction ? Palette.Accent : Palette.Border, 1);
                 bool showType = r.Visited || r.IsSpecial;
                 if (showType && r.MapLabel != "")
-                    Core.Draw.TextCentered(sb, Assets.Small, r.MapLabel, c, r == Room ? Color.Black : r.Type == RoomType.Extraction ? Palette.Accent : Palette.Text, shadow: false);
+                    Core.Draw.TextCentered(sb, Assets.Small, r.MapLabel, c, r == Room ? Palette.Ink : r.Type == RoomType.Extraction ? Palette.Accent : Palette.Text, shadow: false);
+            }
+        }
+
+        // ------------------------------------------------------------------ party view (P)
+        // Check the party and change the formation between fights. The order here is the trial's party
+        // order: the living fill the fight's slots front to back in this order (the fallen are skipped).
+
+        private int _partySel;         // index into _run.Party
+        private int _partyHeld = -1;   // member picked up to swap, or -1
+
+        private static readonly Rectangle PartyPanel = new(150, 60, 980, 610);
+
+        // Formation cells: Front 1 on the right, facing the enemies, like in combat.
+        private static Rectangle PartyCell(int index) =>
+            new(PartyPanel.X + 30 + (3 - index) * 236, PartyPanel.Y + 56, 220, 236);
+
+        private void OpenPartyView(int select)
+        {
+            OpenModal(Modal.Party);
+            _partySel = Math.Clamp(select, 0, Math.Max(0, _run.Party.Count - 1));
+            _partyHeld = -1;
+        }
+
+        private void UpdatePartyView()
+        {
+            int n = _run.Party.Count;
+            if (n == 0) { _modal = Modal.None; return; }
+
+            // Left/Right move across the screen (Left = toward the back).
+            if (Input.Left) _partySel = Math.Min(n - 1, _partySel + 1);
+            if (Input.Right) _partySel = Math.Max(0, _partySel - 1);
+            int hover = Ui.Hover("pcell");
+            if (hover >= 0 && Input.MouseMoved) _partySel = hover;
+
+            int clicked = Ui.ClickedIndex("pcell");
+            if (clicked >= 0) { _partySel = clicked; PickOrDrop(); return; }
+            if (Input.Confirm) { PickOrDrop(); return; }
+
+            bool clickedAway = Input.Click && Ui.Hover("ppanel") < 0 && hover < 0;
+            if (Ui.Clicked("pclose") || Input.Pressed(Keys.P) || clickedAway) { _modal = Modal.None; return; }
+            if (Input.Cancel)
+            {
+                if (_partyHeld >= 0) _partyHeld = -1;   // put the held member back first
+                else _modal = Modal.None;
+            }
+        }
+
+        // First press picks a member up, the second puts them in the selected slot (swapping).
+        private void PickOrDrop()
+        {
+            if (_partyHeld < 0) { _partyHeld = _partySel; return; }
+            if (_partyHeld != _partySel)
+            {
+                var p = _run.Party;
+                (p[_partyHeld], p[_partySel]) = (p[_partySel], p[_partyHeld]);
+                ShowBanner($"{p[_partySel].Def.Name} moves to {FightSlotName(_partySel)}", 1.2f);
+            }
+            _partyHeld = -1;
+        }
+
+        // The slot this member will stand in at the next fight (the fallen are skipped).
+        private string FightSlotName(int index)
+        {
+            var m = _run.Party[index];
+            if (m.Fallen) return "FALLEN";
+            int slot = _run.Party.Take(index).Count(x => !x.Fallen);
+            return HubScreen.SlotName(slot);
+        }
+
+        private void DrawPartyView(SpriteBatch sb, double t)
+        {
+            var r = PartyPanel;
+            Core.Draw.Panel(sb, r);
+            Ui.Hit("ppanel", r);
+            Core.Draw.Text(sb, Assets.Header, "PARTY", new Vector2(r.X + 24, r.Y + 14), Palette.Accent);
+            Core.Draw.Text(sb, Assets.Small, "FORMATION  (enemies are to the right  >>)", new Vector2(r.X + 124, r.Y + 22), Palette.TextDim);
+            Ui.Button(sb, "pclose", 0, new Rectangle(r.Right - 110, r.Y + 12, 92, 30), "Close (P)", font: Assets.Small);
+
+            // ---- formation
+            for (int i = 0; i < 4; i++)
+            {
+                var cell = PartyCell(i);
+                if (i >= _run.Party.Count)
+                {
+                    Core.Draw.Rect(sb, cell, Palette.PanelDark * 0.6f);
+                    Core.Draw.TextCentered(sb, Assets.Small, "(empty)", cell.Center.ToVector2(), Palette.TextDisabled);
+                    continue;
+                }
+                var m = _run.Party[i];
+                bool sel = i == _partySel, held = i == _partyHeld;
+                bool dropTarget = _partyHeld >= 0 && !held && sel;
+                if (held) cell.Y -= 10;   // lifted
+
+                Core.Draw.Rect(sb, cell, held ? Palette.PartyTag : sel ? Palette.Hover : Palette.PanelDark);
+                if (held || dropTarget || sel) Core.Draw.Border(sb, cell, held ? Palette.Violet : dropTarget ? Palette.Lilac300 : Palette.Selected, held || dropTarget ? 3 : 2);
+                Figures.Unit(sb, m.Def.ArtId, m.Def.Role.Substring(0, 1), new Rectangle(cell.Center.X - 46, cell.Y + 18, 92, 140),
+                    m.Def.Color, false, t, m.Fallen ? 0.35f : 1f);
+                Core.Draw.TextCentered(sb, Assets.Body, m.Def.Name, new Vector2(cell.Center.X, cell.Y + 172), m.Fallen ? Palette.TextDisabled : sel ? Palette.Accent : Palette.Text);
+                if (m.Fallen) Core.Draw.TextCentered(sb, Assets.Small, "FALLEN", new Vector2(cell.Center.X, cell.Y + 196), Palette.Danger);
+                else Figures.HpBar(sb, new Rectangle(cell.X + 20, cell.Y + 188, cell.Width - 40, 14), m.Hp, m.MaxHp, false);
+                Core.Draw.TextCentered(sb, Assets.Small, FightSlotName(i), new Vector2(cell.Center.X, cell.Bottom - 14), Palette.TextDim);
+                if (held) Core.Draw.TextCentered(sb, Assets.Small, "MOVING", new Vector2(cell.Center.X, cell.Y + 8), Palette.Violet);
+                Ui.Hit("pcell", i, cell);
+            }
+
+            // ---- details of the selected member
+            if (_partySel < _run.Party.Count) DrawMemberDetails(sb, _run.Party[_partySel], new Rectangle(r.X + 24, r.Y + 308, r.Width - 48, r.Height - 348));
+
+            string hint = _partyHeld >= 0
+                ? $"Moving {_run.Party[_partyHeld].Def.Name}: click a slot (or Left/Right + Enter) to swap.  Esc / right click: cancel"
+                : "Click a member to pick them up, then another slot to swap.  Keys: Left/Right select, Enter pick up / drop, Esc close";
+            Core.Draw.Text(sb, Assets.Small, hint, new Vector2(r.X + 24, r.Bottom - 28), Palette.TextDim);
+        }
+
+        // Name [Class], HP / ATK / SPD / Ethergy, equipment, then skills and passives.
+        private void DrawMemberDetails(SpriteBatch sb, PartyMember m, Rectangle r)
+        {
+            var def = m.Def;
+            Core.Draw.Rect(sb, r, Palette.PanelDark);
+            float x = r.X + 16, y = r.Y + 10;
+            Core.Draw.Text(sb, Assets.Header, def.Name, new Vector2(x, y), Palette.Blush);
+            Core.Draw.Text(sb, Assets.Small, $"[{def.Role}]", new Vector2(x + Assets.Header.MeasureString(def.Name).X + 10, y + 10), Palette.TextDim);
+            y += 36;
+
+            Icons.Draw(sb, "ui_hp", new Rectangle((int)x, (int)y, 18, 18));
+            Core.Draw.Text(sb, Assets.Body, m.Fallen ? "FALLEN" : $"{m.Hp} / {m.MaxHp}", new Vector2(x + 24, y - 1), m.Fallen ? Palette.Danger : Palette.Paper);
+            y += 26;
+            Icons.Draw(sb, "ui_damage", new Rectangle((int)x, (int)y, 18, 18));
+            Core.Draw.Text(sb, Assets.Body, $"ATK {m.Damage}", new Vector2(x + 24, y - 1), Palette.Paper);
+            Icons.Draw(sb, "ui_speed", new Rectangle((int)x + 110, (int)y, 18, 18));
+            Core.Draw.Text(sb, Assets.Body, $"SPD {m.Speed}", new Vector2(x + 134, y - 1), Palette.Paper);
+            y += 26;
+            Icons.Draw(sb, "ui_sp", new Rectangle((int)x, (int)y, 18, 18));
+            Core.Draw.Text(sb, Assets.Body, $"ETHERGY max {def.MaxSp}", new Vector2(x + 24, y - 1), Palette.Lilac300);
+            Core.Draw.Text(sb, Assets.Small, $"starts at {Combat.Battle.StartingSp}, +{Combat.Battle.SpPerTurn}/turn", new Vector2(x + 24, y + 20), Palette.TextDim);
+            y += 46;
+
+            var prog = Profile.Progress(def.Id);
+            var weapon = ItemDb.GetEquipment(prog.Weapon);
+            var charm = ItemDb.GetEquipment(prog.Charm);
+            Core.Draw.Text(sb, Assets.Small, "WEAPON  " + (weapon != null ? $"{weapon.Name}  {weapon.StatText()}" : "-"), new Vector2(x, y), Palette.Text);
+            Core.Draw.Text(sb, Assets.Small, "CHARM    " + (charm != null ? $"{charm.Name}  {charm.StatText()}" : "-"), new Vector2(x, y + 18), Palette.Text);
+
+            // Right column: skills (positions they work from / hit) and passives.
+            float sx = r.X + 330, sy = r.Y + 10;
+            Core.Draw.Text(sb, Assets.Small, "SKILLS", new Vector2(sx, sy), Palette.TextDim);
+            sy += 24;
+            foreach (var a in def.Skills)
+            {
+                HubScreen.SkillRow(sb, a, new Vector2(sx, sy), r.Right - sx - 12);
+                sy += 28;
+            }
+            foreach (var p in def.Passives)
+            {
+                sy += Core.Draw.Wrapped(sb, Assets.Small, $"PASSIVE  {p.Name}: {p.Description}", new Vector2(sx, sy), r.Right - sx - 16, Palette.Accent) + 2;
             }
         }
 
         private void DrawModal(SpriteBatch sb, double t)
         {
             if (_modal == Modal.None) return;
-            if (_modal == Modal.Dialogue)
-            {
-                DrawDialogue(sb, t);
-                return;
-            }
-            Core.Draw.Rect(sb, new Rectangle(0, 0, Game1.Width, Game1.Height), Color.Black * 0.65f);
+            Core.Draw.Rect(sb, new Rectangle(0, 0, Game1.Width, Game1.Height), Palette.Ink * 0.65f * MathHelper.Clamp(_modalIn, 0, 1));
+            Ui.BlockAll();
+            Core.Draw.BeginPop(sb, new Vector2(Game1.Width / 2f, Game1.Height / 2f), _modalIn);
 
             switch (_modal)
             {
+                case Modal.Party:
+                    DrawPartyView(sb, t);
+                    break;
+
                 case Modal.Pause:
-                    OptionsBox(sb, "PAUSED", null, new[] { "Resume", "How to Play", "Abandon Trial (lose all unsecured loot)" });
+                    OptionsBox(sb, "PAUSED", null, new[] { "Resume", "How to Play", "Options", "Abandon Trial (lose all unsecured loot)" });
                     break;
 
                 case Modal.Map:
@@ -855,7 +1472,7 @@ namespace SERAAC.Screens
                     Core.Draw.Panel(sb, r);
                     Core.Draw.TextCentered(sb, Assets.Header, "TRIAL MAP", new Vector2(r.Center.X, r.Y + 28), Palette.Accent);
                     DrawMap(sb, new Rectangle(r.X + 20, r.Y + 60, r.Width - 40, r.Height - 120), 48);
-                    Core.Draw.TextCentered(sb, Assets.Small, "X extraction   * main objective   ! elite   $ cache   + shrine   ? event   S entrance      M / Esc close",
+                    Core.Draw.TextCentered(sb, Assets.Small, "X extraction   * main objective   ! elite   $ cache   + shrine   ? event   S entrance      click / M / Esc close",
                         new Vector2(r.Center.X, r.Bottom - 30), Palette.TextDim);
                     break;
                 }
@@ -896,45 +1513,7 @@ namespace SERAAC.Screens
                     OptionsBox(sb, _messageTitle, _messageBody, new[] { "OK" });
                     break;
             }
-        }
-
-        // Visual-novel style box: big portrait on the left, typewriter text, choices underneath.
-        private void DrawDialogue(SpriteBatch sb, double t)
-        {
-            if (_talkingTo == null || _node == null) return;
-            var npc = _talkingTo;
-            Core.Draw.Rect(sb, new Rectangle(0, 0, Game1.Width, Game1.Height), Color.Black * 0.35f);
-
-            var box = new Rectangle(60, 470, Game1.Width - 120, 230);
-            var portrait = new Rectangle(box.X + 10, box.Y - 190, 230, 410);
-            var set = Figures.ResolveSprite(npc.SpriteId, null, npc.Color);
-            Core.Draw.Panel(sb, box, border: Palette.Accent);
-            if (set != null) Sprites.DrawFit(sb, set, npc.Pose, portrait, Color.White);
-            else Figures.Unit(sb, null, npc.Name.Substring(0, 1), new Rectangle(portrait.X + 60, portrait.Y + 150, 110, 180), npc.Color, false, t, bob: false);
-
-            int textX = box.X + 270;
-            var nameSize = Assets.Header.MeasureString(npc.Name);
-            Core.Draw.Rect(sb, textX - 10, box.Y - 22, nameSize.X + 20, 38, Palette.PanelLight);
-            Core.Draw.Text(sb, Assets.Header, npc.Name, new Vector2(textX, box.Y - 16), Palette.Accent);
-
-            string full = _node.TextFor(DialogueCtx);
-            string shown = full.Substring(0, Math.Min(full.Length, (int)_typed));
-            Core.Draw.Wrapped(sb, Assets.Body, shown, new Vector2(textX, box.Y + 26), box.Right - textX - 30, Palette.Text);
-
-            if (_typed < full.Length) return;
-            var choices = VisibleChoices();
-            if (choices.Count == 0)
-            {
-                Core.Draw.TextRight(sb, Assets.Small, "Enter - continue", new Vector2(box.Right - 20, box.Bottom - 26), Palette.TextDim);
-                return;
-            }
-            for (int i = 0; i < choices.Count; i++)
-            {
-                bool sel = i == _modalIndex;
-                var row = new Rectangle(textX - 8, box.Y + 96 + i * 30, 520, 28);
-                if (sel) Core.Draw.Rect(sb, row, Palette.PanelLight);
-                Core.Draw.Text(sb, Assets.Body, (sel ? "> " : "  ") + choices[i].Label, new Vector2(row.X + 8, row.Y + 5), sel ? Palette.Accent : Palette.Text);
-            }
+            Core.Draw.EndPop(sb);
         }
 
         private void OptionsBox(SpriteBatch sb, string title, string body, string[] options, string[] icons = null)
@@ -948,9 +1527,15 @@ namespace SERAAC.Screens
             }
             int h = (int)(90 + bodyH + options.Length * 42 + 20);
             var r = new Rectangle(Game1.Width / 2 - width / 2, Game1.Height / 2 - h / 2, width, h);
-            Core.Draw.Panel(sb, r, border: Palette.Accent);
-            Core.Draw.TextCentered(sb, Assets.Header, title, new Vector2(r.Center.X, r.Y + 32), Palette.Accent);
-            float y = r.Y + 64;
+            Core.Draw.Rect(sb, r, Color.Lerp(Palette.Ink, Palette.Grey900, 0.3f) * 0.97f);
+            Core.Draw.GradientV(sb, new Rectangle(r.X, r.Y, r.Width, 90), Palette.Crimson * 0.45f);
+            Core.Draw.Border(sb, r, Palette.LineBright, 1);
+            Core.Draw.Border(sb, new Rectangle(r.X + 5, r.Y + 5, r.Width - 10, r.Height - 10), Palette.Line, 1);
+            Ui.Hit("optbox", r);
+            Core.Draw.SpacedCentered(sb, Assets.Header, title.ToUpperInvariant(), new Vector2(r.Center.X, r.Y + 30), Palette.Paper, 3);
+            Core.Draw.Divider(sb, new Vector2(r.Center.X, r.Y + 52), width - 160, Palette.Paper * 0.5f);
+            Core.Draw.Ornament(sb, new Vector2(r.Center.X, r.Y + 52), 12, Palette.Gold);
+            float y = r.Y + 66;
             if (body != null)
             {
                 Core.Draw.Wrapped(sb, Assets.Body, body, new Vector2(r.X + 30, y), width - 60, Palette.Text);
@@ -960,14 +1545,15 @@ namespace SERAAC.Screens
             {
                 var row = new Rectangle(r.X + 20, (int)y + i * 42, width - 40, 36);
                 bool sel = i == _modalIndex;
-                if (sel) Core.Draw.Rect(sb, row, Palette.PanelLight);
+                if (sel) Ui.SelectedRow(sb, row);
+                Ui.HoverRow(sb, "opt", i, row, sel);
                 int textX = row.X + 10;
                 if (icons != null && i < icons.Length)
                 {
                     Icons.Draw(sb, icons[i], new Rectangle(row.X + 22, row.Y + 2, 32, 32));
                     textX += 50;
                 }
-                Core.Draw.Text(sb, Assets.Body, (sel ? "> " : "  ") + options[i], new Vector2(textX, row.Y + 8), sel ? Palette.Accent : Palette.Text);
+                Core.Draw.Text(sb, Assets.Body, options[i], new Vector2(textX + 12, row.Y + 8), sel ? Palette.Paper : Palette.Text);
             }
         }
 

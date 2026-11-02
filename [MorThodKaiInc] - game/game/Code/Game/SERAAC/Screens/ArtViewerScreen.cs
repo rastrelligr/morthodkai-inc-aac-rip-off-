@@ -27,9 +27,9 @@ namespace SERAAC.Screens
 
         public override void Update(GameTime gameTime)
         {
-            if (Input.Left) _page = (_page + _pages.Count - 1) % _pages.Count;
-            if (Input.Right) _page = (_page + 1) % _pages.Count;
-            if (Input.Cancel) Screens.Replace(new MainMenuScreen());
+            if (Input.Left || Ui.Clicked("page", 0)) _page = (_page + _pages.Count - 1) % _pages.Count;
+            if (Input.Right || Ui.Clicked("page", 1)) _page = (_page + 1) % _pages.Count;
+            if (Input.Cancel || Ui.Clicked("page", 2)) Screens.Replace(new MainMenuScreen());
         }
 
         public override void Draw(SpriteBatch sb, GameTime gameTime)
@@ -37,8 +37,11 @@ namespace SERAAC.Screens
             double t = gameTime.TotalGameTime.TotalSeconds;
             string page = _pages.Count > 0 ? _pages[_page] : "(no sheets found in Art/Sheets)";
             Core.Draw.Text(sb, Assets.Header, "ART VIEWER  -  " + page, new Vector2(30, 20), Palette.Accent);
-            Core.Draw.Text(sb, Assets.Small, "Left/Right page   Esc back      Red line = ground, cyan dot = foot point. Every pose is drawn at the same scale.",
+            Core.Draw.Text(sb, Assets.Small, "Left/Right page   Esc back      Red line = ground, violet dot = foot point. Every pose is drawn at the same scale.",
                 new Vector2(30, 52), Palette.TextDim);
+            Ui.Button(sb, "page", 0, new Rectangle(Game1.Width - 330, 18, 96, 30), "< Prev", font: Assets.Small);
+            Ui.Button(sb, "page", 1, new Rectangle(Game1.Width - 228, 18, 96, 30), "Next >", font: Assets.Small);
+            Ui.Button(sb, "page", 2, new Rectangle(Game1.Width - 126, 18, 96, 30), "Back", font: Assets.Small);
             if (_pages.Count == 0) return;
 
             const float ground = 560;
@@ -88,7 +91,7 @@ namespace SERAAC.Screens
                 float w = frame.W * (refH / set.ReferenceHeight);
                 float footX = px + frame.Pivot.X * (refH / set.ReferenceHeight);
                 Sprites.Draw(sb, set, name, new Vector2(footX, ground), refH, Color.White, false);
-                Core.Draw.Rect(sb, footX - 3, ground - 3, 6, 6, Color.Cyan);
+                Core.Draw.Rect(sb, footX - 3, ground - 3, 6, 6, Palette.Violet);
                 Core.Draw.TextCentered(sb, Assets.Small, name + (name == set.Reference ? " (ref)" : ""), new Vector2(footX, ground + 24), Palette.Text);
                 Core.Draw.TextCentered(sb, Assets.Small, $"{frame.W}x{frame.H}", new Vector2(footX, ground + 42), Palette.TextDim);
                 px += Math.Max(w, 60) + 30;

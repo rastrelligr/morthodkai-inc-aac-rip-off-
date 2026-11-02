@@ -1,5 +1,5 @@
 {
-  // Placeholder sprite for Sister Noa (single pose). Add more poses to the "frames" list later.
+  // Stand-in for Elian (char_priest): this is still Sister Noa's drawing until Elian's sheet arrives.
   "id": "char_priest",
   "image": "Noa.png",
   "reference": "idle",

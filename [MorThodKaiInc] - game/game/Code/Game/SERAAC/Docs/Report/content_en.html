@@ -1,0 +1,465 @@
+<div class="cover">
+  <div>
+    {{LOGO}}
+    <div style="font-size:18pt;font-weight:700">Report</div>
+    <div class="t1">Applying Data Structures<br>in the Development of Aetheris</div>
+    <div class="t2">(Project SERAAC)</div>
+  </div>
+  <div class="who">
+    <b>Prepared by</b><br>
+    MTG (MorThodGame)<br>
+    1. [Full name] &nbsp; Student ID [..........]<br>
+    2. [Full name] &nbsp; Student ID [..........]<br>
+    3. [Full name] &nbsp; Student ID [..........]<br>
+    4. [Full name] &nbsp; Student ID [..........]
+  </div>
+  <div class="who">
+    <b>Presented to</b><br>[Instructor's name]<br><br>
+    This report is part of [Course code] Data Structures<br>
+    Semester [..], Academic Year 2026<br>
+    Chiang Mai University
+  </div>
+</div>
+
+<h1 class="front">Preface</h1>
+<p>This report is part of the Data Structures course. It describes the data structures our group uses, and plans to use, in Aetheris (project name SERAAC), an RPG in which the player takes a party of four into a dungeon, fights turn-based battles, collects loot and decides whether to extract or keep going. The game is written in C# on .NET 9 with MonoGame 3.8.</p>
+<p>The report has five chapters: introduction, related theory, system design, how the data structures are used in the game, and conclusion. All code samples and diagrams come from the project's source. The appendices contain more code and a list of the data structures used.</p>
+<p>We hope the report is useful to its readers, and apologise for any mistakes it may contain.</p>
+<p class="ni" style="text-align:right;margin-top:2em">The authors<br>MTG</p>
+
+<h1 class="front">Table of Contents</h1>
+{{TOC}}
+
+<h1 class="front">List of Figures</h1>
+{{LOF}}
+
+<h1 class="front">List of Tables</h1>
+{{LOT}}
+
+<!-- ============================================================== Chapter 1 -->
+<h1 class="chap" data-n="1" data-toc="Chapter 1 Introduction">Chapter 1<small>Introduction</small></h1>
+
+<h2>1.1 Background</h2>
+<p>Games run in real time. Aetheris renders at 60 frames per second, so each frame has about 16.7 ms to read input, update characters and enemies, and draw everything. A poor choice of data structure, such as a linear search through a long list every frame, can easily make the game stutter.</p>
+<p>A data structure that matches the game's rules also makes the code easier to read and less buggy. For example, the design document says a formation has 4 slots and a slot stays empty when its unit dies. An array of 4 with <code>null</code> for empty slots matches that rule directly.</p>
+
+<h2>1.2 Objectives</h2>
+<ol>
+<li>To describe the data structures used in Aetheris, with diagrams and code.</li>
+<li>To explain why each system uses the data structure it does.</li>
+<li>To analyse the time complexity of the main operations.</li>
+<li>To present the data structures planned for future work.</li>
+</ol>
+
+<h2>1.3 Scope</h2>
+<p>The report covers the SERAAC source on the <code>dev</code> branch, about 60 C# files, excluding the old code in <code>_Archive</code>. It covers screens, the dungeon map, room layouts, pathfinding, combat, enemy AI, dialogue, asset loading and saving.</p>
+
+<h2>1.4 Overview of Aetheris</h2>
+<p>The player starts in the Hub, picks 4 characters, sets their formation, equips them and upgrades their stats. They then enter a Trial, a dungeon of connected rooms generated anew each time. Rooms may contain enemies, chests, rest spots, events or extraction points. Walking into an enemy starts a battle: the player chooses an action for every party member, then both sides' actions run in order of speed. Loot found in a Trial only becomes the player's when they extract; if the party is defeated, it is all lost.</p>
+
+<h2>1.5 Expected Benefits</h2>
+<ol>
+<li>An understanding of how data structures are used in real-time programs.</li>
+<li>The ability to compare data structures before choosing one.</li>
+<li>A reference for group members as development continues.</li>
+</ol>
+
+<h2>1.6 Definitions</h2>
+{{TAB|Terms used in this report}}
+<table>
+<tr><th style="width:22%">Term</th><th>Meaning</th></tr>
+<tr><td>Trial</td><td>One dungeon, made of connected rooms</td></tr>
+<tr><td>Room</td><td>One room in a Trial, with a type, a layout, connections and a state</td></tr>
+<tr><td>Slot</td><td>One of 4 formation positions: Front 1, Front 2, Back 1, Back 2</td></tr>
+<tr><td>Combatant</td><td>One character or enemy in a battle</td></tr>
+<tr><td>Extraction</td><td>Leaving a Trial to keep the loot</td></tr>
+<tr><td>Screen</td><td>One game state, e.g. menu, hub, exploration, combat</td></tr>
+</table>
+
+<!-- ============================================================== Chapter 2 -->
+<h1 class="chap" data-n="2" data-toc="Chapter 2 Related Theory">Chapter 2<small>Related Theory</small></h1>
+
+<h2>2.1 Performance Analysis</h2>
+<p>Performance is described with Big-O notation, which says how running time grows with the input size n: O(1) is constant, O(n) grows linearly, and O(n log n) is the best a comparison sort can do. Some costs are amortized: appending to a List occasionally grows the underlying array, but costs O(1) on average. Games also have to watch memory allocation, because the .NET garbage collector can cause a visible hitch if too many short-lived objects are created.</p>
+
+<h2>2.2 Arrays and Lists</h2>
+<p>An array (<code>T[]</code>) stores elements contiguously and gives O(1) access by index, but its size is fixed. A 2D array (<code>T[,]</code>) suits grid-shaped data, and a jagged array (<code>T[][]</code>) is an array of arrays whose rows may have different lengths.</p>
+<p><code>List&lt;T&gt;</code> is an array that grows by itself. Appending is amortized O(1) and indexing is O(1), but inserting or removing in the middle and searching by value are O(n). It suits data that is appended and then iterated.</p>
+
+<h2>2.3 Stacks and Queues</h2>
+<p>A stack is LIFO (last in, first out), with O(1) Push and Pop. It fits work that nests and then unwinds, such as undo or screens opened on top of each other. A queue is FIFO (first in, first out), with O(1) Enqueue and Dequeue. .NET's <code>Queue&lt;T&gt;</code> is a circular buffer, so nothing is shifted. Queues fit work that must be handled in arrival order.</p>
+
+<h2>2.4 Hash Tables</h2>
+<p>A hash table stores key–value pairs and uses the key's hash to find where an entry lives, so insert, lookup and delete are O(1) on average. In C# this is <code>Dictionary&lt;K,V&gt;</code>. <code>HashSet&lt;T&gt;</code> stores keys only; it tests membership in O(1) and holds no duplicates. Keys can be strings, enums, structs such as <code>Point</code>, or tuples.</p>
+
+<h2>2.5 Graphs, Trees and Breadth-First Search</h2>
+<p>A graph has vertices and edges. It can be stored as an adjacency matrix (O(V²) space) or as adjacency lists (O(V + E) space), which suit graphs with few edges. A tree is a connected graph with no cycles.</p>
+<p>Breadth-first search (BFS) starts at a source and expands one layer at a time using a queue. When every edge has the same cost, BFS finds the shortest distance to every vertex in O(V + E). Recording each vertex's predecessor lets you rebuild the path. Using BFS on a grid to find every reachable cell is called flood fill.</p>
+
+<h2>2.6 Bitmasks and Multi-key Sorting</h2>
+<p>A bitmask uses the bits of an integer to represent a small set. Membership, union and subset tests are single bitwise operations, O(1). A multi-key sort orders by a primary key and uses secondary keys to break ties. In C# this is <code>OrderBy(...).ThenBy(...)</code>, a stable sort (equal elements keep their order) that runs in O(n log n).</p>
+
+{{TAB|Time complexity of the main operations (average case)}}
+<table>
+<tr><th>Structure</th><th>Access</th><th>Search by value</th><th>Insert</th><th>Delete</th></tr>
+<tr><td><code>T[]</code>, <code>T[,]</code></td><td>O(1)</td><td>O(n)</td><td>-</td><td>-</td></tr>
+<tr><td><code>List&lt;T&gt;</code></td><td>O(1)</td><td>O(n)</td><td>O(1) at end</td><td>O(n)</td></tr>
+<tr><td>Stack / Queue</td><td>top/front O(1)</td><td>O(n)</td><td>O(1)</td><td>O(1)</td></tr>
+<tr><td><code>Dictionary</code> / <code>HashSet</code></td><td>O(1)</td><td>by key O(1)</td><td>O(1)</td><td>O(1)</td></tr>
+<tr><td>Bitmask</td><td>O(1)</td><td>O(1)</td><td>O(1)</td><td>O(1)</td></tr>
+</table>
+
+<!-- ============================================================== Chapter 3 -->
+<h1 class="chap" data-n="3" data-toc="Chapter 3 System Design">Chapter 3<small>System Design</small></h1>
+
+<h2>3.1 Program Structure</h2>
+<p>The code is split by responsibility. <code>Game1</code> is MonoGame's main loop, calling <code>Update()</code> and <code>Draw()</code> every frame. <code>ScreenManager</code> keeps the screens as a stack. The game rules live outside the screens: Trial (dungeons and rooms), Combat (battle rules with no drawing code), Meta (saved data) and Data (game content). This split lets each part use the data structure that suits its own work.</p>
+{{FIG:architecture|Program structure and the main data structures in each part}}
+
+<h2>3.2 Selection Criteria</h2>
+<p>We considered four things: (1) how the system accesses its data, e.g. by index, by key or in arrival order; (2) whether the data is fixed or variable in size, and how large it is (for ten items or fewer, a linear search is fine); (3) whether the code runs every frame or only once; and (4) whether the structure matches the rule in the design document.</p>
+
+{{TAB|Game systems and the data structures they use}}
+<table>
+<tr><th style="width:24%">System</th><th style="width:44%">Data structure</th><th>Section</th></tr>
+<tr><td>Screen management</td><td>Stack (<code>List&lt;Screen&gt;</code>)</td><td>4.1</td></tr>
+<tr><td>Trial map</td><td>Graph: <code>Dictionary&lt;Point,Room&gt;</code> and <code>Dictionary&lt;Dir,Room&gt;</code>, BFS</td><td>4.2</td></tr>
+<tr><td>Room layout</td><td><code>Tile[,]</code>, <code>string[][]</code>, <code>HashSet&lt;Point&gt;</code></td><td>4.3</td></tr>
+<tr><td>Pathfinding</td><td>BFS with <code>Queue</code> and <code>Dictionary</code></td><td>4.4</td></tr>
+<tr><td>Formation</td><td><code>Combatant[4]</code>, <code>Ranks</code> bitmask</td><td>4.5</td></tr>
+<tr><td>Turn order</td><td>Multi-key sort, two <code>Queue</code>s</td><td>4.6</td></tr>
+<tr><td>Statuses and AI</td><td><code>List&lt;StatusInstance&gt;</code>, <code>List&lt;(T, double)&gt;</code></td><td>4.7</td></tr>
+<tr><td>Content and dialogue</td><td><code>List</code>, directed graph</td><td>4.8</td></tr>
+<tr><td>Caches and flags</td><td><code>Dictionary</code>, <code>HashSet</code></td><td>4.9</td></tr>
+<tr><td>Saving</td><td><code>Dictionary</code> and <code>List</code> as JSON</td><td>4.10</td></tr>
+</table>
+
+<h2>3.3 Class Diagram</h2>
+<p>The UML diagram below shows the main classes and their data-structure fields. A filled diamond marks composition (one object owns another), a dashed line marks a dependency, and the triangle marks inheritance.</p>
+{{FIG:uml|UML class diagram of the main classes}}
+
+<!-- ============================================================== Chapter 4 -->
+<h1 class="chap" data-n="4" data-toc="Chapter 4 Data Structures in the Game">Chapter 4<small>Data Structures in the Game</small></h1>
+
+<h2>4.1 The Screen Stack</h2>
+<p>The game has several screens: menu, hub, exploration, combat and results. When a fight starts during exploration, the exploration screen must be paused as it is and restored once the fight ends. <code>ScreenManager</code> therefore keeps screens in a <code>List&lt;Screen&gt;</code> used as a stack, with the end of the list as the top. Combat is pushed on top of exploration and popped when it ends. The exploration screen stays in memory, so nothing has to be rebuilt.</p>
+{{FIG:screen_stack|Pushing and popping the combat screen}}
+{{CODE|Listing 4.1 Popping the top screen and drawing bottom to top (Core/Screen.cs)}}
+public void PopInstant()
+{
+    if (_stack.Count > 0)
+    {
+        _stack[^1].OnExit();
+        _stack.RemoveAt(_stack.Count - 1);   // remove the top: O(1)
+    }
+    Top?.OnResume();
+}
+
+public void Draw(SpriteBatch sb, GameTime gt)
+{
+    for (int i = FirstVisible(); i < _stack.Count; i++)   // bottom -> top
+        _stack[i].Draw(sb, gt);
+}
+{{/CODE}}
+<p>A List is used instead of <code>Stack&lt;T&gt;</code> because the pause menu is translucent, so the screen beneath it must also be drawn. That means iterating bottom to top by index, which <code>Stack&lt;T&gt;</code> does not support. Push and Pop are O(1).</p>
+
+<h2>4.2 The Dungeon Map as a Graph</h2>
+<p>Each Trial needs a new random map. Every room must be reachable, there should be branches and loops, and special rooms must be placed by distance from the entrance: the objective at the deepest dead end, and extraction points reasonably far from the entrance.</p>
+<p>The map is an undirected graph stored at two levels. The first is <code>Dictionary&lt;Point, Room&gt; Rooms</code>, keyed by grid coordinates, which finds a room by position or checks whether a cell is taken in O(1). The second is <code>Dictionary&lt;Dir, Room&gt; Links</code> in each room, an adjacency list keyed by direction. A room has at most 4 links, and the key also tells which side the door is on.</p>
+{{FIG:map_hash|The room hash table and the adjacency list inside a room}}
+<p>Generation starts with the entrance at (0,0) and grows new rooms out of existing ones, one at a time. Each new room is linked to exactly one existing room, so the result is a tree in which every room is reachable. Neighbouring rooms are then linked with an 18% chance to create loops. Finally BFS computes each room's depth (the number of doors from the entrance), which decides room types and difficulty.</p>
+{{FIG:trial_map|An example Trial map: solid lines are tree edges, dashed lines are loops, d is the BFS depth}}
+{{CODE|Listing 4.2 Linking rooms both ways and computing depths with BFS (Trial/TrialMap.cs)}}
+private static void Link(Room a, Room b, Dir aToB)
+{
+    a.Links[aToB] = b;                           // undirected edge = two entries
+    b.Links[RoomLayout.Opposite(aToB)] = a;
+}
+
+private void ComputeDepths()
+{
+    foreach (var r in Rooms.Values) r.Depth = -1;   // -1 = not visited
+    var q = new Queue<Room>();
+    Entrance.Depth = 0;
+    q.Enqueue(Entrance);
+    while (q.Count > 0)
+    {
+        var r = q.Dequeue();
+        foreach (var n in r.Links.Values)
+            if (n.Depth < 0) { n.Depth = r.Depth + 1; q.Enqueue(n); }
+    }
+    MaxDepth = Rooms.Values.Max(r => r.Depth);
+}
+{{/CODE}}
+<p>A <code>Room[9,9]</code> array was not used because a map has only 8–15 rooms out of 81 cells, and coordinates can be negative; the Dictionary stores only rooms that exist. BFS is used instead of DFS because we need the shortest distance from the entrance, which DFS does not guarantee once there are loops. BFS runs in O(V + E), once per Trial.</p>
+
+<h2>4.3 Room Layouts as 2D Arrays</h2>
+<p>Each room is divided into 48-pixel tiles. The game needs to know which tiles are walkable, which are walls or pillars, and where loot can be placed. Collision checks run every frame for the party and every enemy, so they must be fast.</p>
+<p>Five template layouts are stored as <code>string[][] Templates</code>, one character per tile (<code>.</code> floor, <code>o</code> pillar, <code>L</code> loot spot, <code>F</code> feature), so layouts can be edited by typing. When a room is built, its template is converted into a <code>Tile[21,12]</code> (optionally mirrored left to right) and doors are opened for each direction in <code>Links</code>.</p>
+{{CODE|Listing 4.3 Converting a template to a 2D array, and the solid-tile test (Trial/RoomLayout.cs)}}
+for (int iy = 0; iy < InnerRows; iy++)
+    for (int ix = 0; ix < InnerCols; ix++)
+    {
+        char ch = src[iy][mirror ? InnerCols - 1 - ix : ix];   // mirror = read the row backwards
+        int x = ix + 1, y = iy + 1;                            // +1: outer wall ring
+        layout.Tiles[x, y] = ch switch { 'o' => Tile.Pillar, ',' => Tile.Decor, _ => Tile.Floor };
+        if (ch == 'L') layout.LootSpots.Add(new Point(x, y));
+    }
+
+public bool Solid(int x, int y) =>
+    x < 0 || y < 0 || x >= Cols || y >= Rows || Tiles[x, y] == Tile.Wall || Tiles[x, y] == Tile.Pillar;
+{{/CODE}}
+<p>Rooms are a fixed size and every tile holds data, so a 2D array is the natural fit, and <code>Solid(x, y)</code> is O(1). The <code>Reachable()</code> method also runs BFS with a <code>HashSet&lt;Point&gt;</code> to find every tile reachable from a door. The game uses this to choose enemy spawn points (<code>Pack.Spawn</code>) and to move dropped loot onto reachable floor (<code>TrialRun.ClampToFloor</code>).</p>
+
+<h2>4.4 Pathfinding with BFS</h2>
+<p>The player can click anywhere in a room to walk there, and chasing enemies periodically re-plan their path to the player. Both use BFS over the room grid: a <code>Queue&lt;Point&gt;</code> holds tiles waiting to be explored, and a <code>Dictionary&lt;Point, Point&gt; prev</code> holds each tile's predecessor and doubles as the visited set. Once the goal is reached, the path is rebuilt by following <code>prev</code> back to the start and reversing the list.</p>
+{{FIG:bfs_mechanics|The queue, the predecessor table and path reconstruction}}
+{{CODE|Listing 4.4 Pathfinding with BFS (Screens/ExplorationScreen.cs)}}
+private List<Point> FindPath(Point from, Point to)
+{
+    if (from == to) return new List<Point> { to };
+    var prev = new Dictionary<Point, Point> { [from] = from };
+    var q = new Queue<Point>();
+    q.Enqueue(from);
+    while (q.Count > 0)
+    {
+        var p = q.Dequeue();
+        if (p == to) break;                                  // shortest path found
+        foreach (var d in RoomLayout.AllDirs)
+        {
+            var s = RoomLayout.Step(d);
+            var n = new Point(p.X + s.X, p.Y + s.Y);
+            if (prev.ContainsKey(n) || !Walkable(n)) continue;
+            prev[n] = p;
+            q.Enqueue(n);
+        }
+    }
+    if (!prev.ContainsKey(to)) return null;                  // unreachable
+    var path = new List<Point>();
+    for (var c = to; c != from; c = prev[c]) path.Add(c);
+    path.Reverse();
+    return path;
+}
+{{/CODE}}
+<p>Figure 4.5 shows the result on the real Plaza layout. Each number is the BFS distance from the left door; {{REACH}} tiles are reachable, and the path to the tile in front of the feature is {{PATH_LEN}} steps. After the path is found, waypoints that can be reached in a straight line are skipped, so the character cuts corners instead of zig-zagging.</p>
+{{FIG:tile_grid|The Plaza layout in Tile[21,12] with BFS distances and the shortest path}}
+<p>We chose BFS over A* because a room has only 252 tiles and every step costs the same, so BFS finds an equally short path with simpler code and no priority queue. The cost is O(W × H) for a room of W × H tiles.</p>
+
+<h2>4.5 The Formation and the Position Bitmask</h2>
+<p>Per the design document, each side has 4 positions, characters can swap positions, and when a unit dies its position stays empty instead of someone moving up. <code>Battle</code> therefore uses a <code>Combatant[4]</code> array per side, where the index is the position (0 = Front 1 to 3 = Back 2) and an empty slot is <code>null</code>. Dead units move to <code>List&lt;Combatant&gt; Fallen</code>.</p>
+{{FIG:formation|The formation arrays, a swap, and an empty slot after a death}}
+{{CODE|Listing 4.5 Swapping and dying (Combat/Battle.cs)}}
+private void SwapTo(Combatant c, int slot, List<BattleEvent> ev)
+{
+    var side = Allies(c);
+    int from = c.Slot;
+    var other = side[slot];        // may be null (empty slot)
+    side[slot] = c;
+    side[from] = other;
+    c.Slot = slot;
+    if (other != null) other.Slot = from;
+}
+
+private void Kill(Combatant t, List<BattleEvent> ev)
+{
+    var side = Allies(t);
+    if (side[t.Slot] == t) side[t.Slot] = null;   // the position becomes empty
+    Fallen.Add(t);
+}
+{{/CODE}}
+<p>With a List, removing a dead unit would shift everyone behind it forward, which breaks the rule. An array with <code>null</code> slots matches the rule, and finding who is in a slot or swapping two slots is O(1). The downside is that every loop has to check for <code>null</code>.</p>
+<p>Each skill lists the positions it can be used from and the positions it can hit. These are stored in <code>Ranks</code>, a struct holding a single <code>byte</code>, where bits 0–3 are the four positions. Membership is an AND with <code>1 &lt;&lt; slot</code>, and a subset test is <code>(a &amp; ~b) == 0</code>. Every operation is O(1) and allocates nothing.</p>
+{{FIG:ranks|A set of positions stored as a bitmask}}
+{{CODE|Listing 4.6 The Ranks struct (Data/ActionDef.cs)}}
+public readonly struct Ranks
+{
+    private readonly byte _bits;
+
+    public static Ranks Of(string ranks)              // "12" -> 0b0011
+    {
+        byte b = 0;
+        foreach (char ch in ranks)
+            if (ch >= '1' && ch <= '4') b |= (byte)(1 << (ch - '1'));
+        return new Ranks(b);
+    }
+
+    public bool Has(int slot) => slot >= 0 && slot < 4 && (_bits & (1 << slot)) != 0;
+    public bool Within(Ranks other) => _bits != 0 && (_bits & ~other._bits) == 0;
+}
+{{/CODE}}
+
+<h2>4.6 Turn Order and the Event Queue</h2>
+<p>Each turn the player chooses an action for every member (with undo). Then all actions run in order: Priority actions first, then by speed from high to low, with ties going to the party and then to front slots. The rules resolve instantly, but the results have to be shown step by step.</p>
+<p>While choosing, the game uses a <code>List&lt;Combatant&gt;</code> with a cursor; undo decrements the cursor, which behaves like a stack. When every choice is made, <code>ResolveOrder()</code> sorts by several keys and the result goes into a <code>Queue&lt;Combatant&gt;</code>. Actors are dequeued one at a time, and <code>Battle.Execute()</code> returns a list of events (damage, moves, deaths) that go into a second <code>Queue&lt;BattleEvent&gt;</code> to be animated one by one.</p>
+{{FIG:turn_pipeline|The order of work in one turn}}
+{{CODE|Listing 4.7 Multi-key sort and the two queues (Combat/Battle.cs, Screens/CombatScreen.cs)}}
+public List<Combatant> ResolveOrder() =>
+    Living.Where(c => c.Plan != null)
+        .OrderByDescending(c => c.Plan.Action.Priority)
+        .ThenByDescending(c => c.EffectiveSpeed)
+        .ThenBy(c => c.IsParty ? 0 : 1)
+        .ThenBy(c => c.Slot)
+        .ThenBy(c => c.Order)          // spawn order: no ties left
+        .ToList();
+
+// CombatScreen
+if (_events.Count > 0) _timer = PlayEvent(_events.Dequeue());
+else if (_resolveQueue.Count > 0)
+{
+    var actor = _resolveQueue.Dequeue();
+    foreach (var e in _battle.Execute(actor)) _events.Enqueue(e);
+}
+{{/CODE}}
+<p>A battle has at most 8 units, so one O(n log n) sort is enough, and the same order feeds the turn-order bar on screen. A stable sort with a unique last key gives the same order every time. The two queues keep the rules separate from the animation and show events in the order they happened.</p>
+
+<h2>4.7 Status Effects and Enemy AI</h2>
+<p>Each unit keeps its status effects (e.g. Guard, Mark, Slow) in a <code>List&lt;StatusInstance&gt;</code>. If it gains a status it already has, the game merges it into the existing entry, keeping the larger values, instead of adding a duplicate. There are only 8 kinds of status, so a linear search is fast enough, and <code>RemoveAll()</code> removes statuses by condition in one pass.</p>
+<p>Enemies choose targets by weighted random selection (a roulette wheel). They build a <code>List&lt;(Combatant, double)&gt;</code> of targets and weights: wounded or Marked targets weigh more, and each enemy type multiplies by its preference for each position (a <code>float[4]</code>). A random number between 0 and the total weight is drawn, and weights are subtracted one by one until it reaches zero. This is O(n), which is fine for at most 4 targets.</p>
+{{FIG:weighted|Weighted random target selection}}
+
+<h2>4.8 Content Data and the Dialogue Graph</h2>
+<p>Characters, enemies, items and dungeons are stored as <code>List</code>s in classes such as <code>CharacterDb</code>, <code>EnemyDb</code> and <code>ItemDb</code>, because they are usually read in full (to show a menu or pick enemies) and the list order is the display order.</p>
+<p>NPC dialogue is a directed graph stored in a <code>Dictionary&lt;string, DialogueNode&gt;</code>. Each node has text and a list of choices; each choice is an edge to the next node by name and can be hidden by a condition. Referring to nodes by name makes it easy to loop back to an earlier node, and finding the next node is O(1).</p>
+{{FIG:dialogue|The dialogue graph of the NPC Maren}}
+
+<h2>4.9 Asset Caches and Flags</h2>
+<p>Loading an image, cutting frames, scaling or recolouring a sprite takes time, so the game stores the results in a <code>Dictionary</code>: the first call loads and stores, and later calls read straight from the table. Keys vary: a file name (<code>string</code>), an image height (<code>int</code>), or a <code>(string, uint)</code> tuple for recoloured sprites, which avoids building string keys.</p>
+{{FIG:cache|Caching assets in a Dictionary}}
+<p>For "has this happened yet?" data, the game uses <code>HashSet</code>. <code>TrialRun.Flags</code> records events from the current Trial for use as dialogue conditions, and the combat screen keeps the units currently being aimed at in a <code>HashSet&lt;Combatant&gt;</code>, which is checked for every unit every frame.</p>
+
+<h2>4.10 Saving</h2>
+<p>Data that persists between Trials lives in the <code>Profile</code> class and is saved as JSON. Each character's upgrade levels and equipment are stored in a <code>Dictionary&lt;string, CharacterProgress&gt;</code> keyed by character id, so old saves still work when new characters are added. The party order and the equipment stash are <code>List&lt;string&gt;</code>, because order matters. Both types map directly to JSON (see Appendix C). Loot found during a Trial is kept separately in <code>TrialRun</code> and only moves into <code>Profile</code> after a successful extraction.</p>
+
+<h2>4.11 Planned Data Structures</h2>
+{{TAB|Data structures planned for future work}}
+<table>
+<tr><th style="width:26%">Data structure</th><th>Use and reason</th></tr>
+<tr><td><code>PriorityQueue</code> and A*</td><td>If slow terrain (e.g. mud) is added, the grid becomes weighted and BFS no longer finds the best path, so pathfinding would switch to A*.</td></tr>
+<tr><td>Object pool (<code>Stack&lt;T&gt;</code>)</td><td>Reuse short-lived objects such as damage numbers to reduce garbage collection.</td></tr>
+<tr><td>Ring buffer</td><td>The combat log currently uses <code>List.RemoveAt(0)</code>, which is O(n); a ring buffer does this in O(1).</td></tr>
+<tr><td>Spatial hash</td><td>If rooms hold many enemies, dividing the room into cells limits collision checks to nearby units.</td></tr>
+<tr><td>DAG and topological sort</td><td>Unlock requirements for areas and quests, to find a valid order and check that no requirements form a cycle.</td></tr>
+</table>
+
+<!-- ============================================================== Chapter 5 -->
+<h1 class="chap" data-n="5" data-toc="Chapter 5 Conclusion">Chapter 5<small>Conclusion</small></h1>
+
+<h2>5.1 Summary</h2>
+<p>Aetheris uses every group of basic data structures from the course, each chosen for how its system uses data, as summarised in Table 5.1. Systems that run every frame, such as collision and aiming, use O(1) operations, while heavier work such as BFS and map generation runs occasionally on small data.</p>
+{{TAB|Summary of the data structures used in the game}}
+<table>
+<tr><th style="width:26%">Data structure</th><th>Use in the game</th></tr>
+<tr><td>Array / 2D array</td><td>4-slot formation, 21×12 room grid</td></tr>
+<tr><td>List</td><td>Content data, status effects, loot</td></tr>
+<tr><td>Stack</td><td>Screens, undo while choosing actions</td></tr>
+<tr><td>Queue</td><td>BFS, actor order, event order</td></tr>
+<tr><td>Dictionary / HashSet</td><td>Rooms by position, adjacency, caches, dialogue, flags, save file</td></tr>
+<tr><td>Graph / tree</td><td>Trial map, dialogue graph</td></tr>
+<tr><td>Bitmask</td><td>Positions a skill can be used from and hit</td></tr>
+</table>
+
+<h2>5.2 Problems Encountered</h2>
+<ol>
+<li>Using <code>null</code> for empty formation slots means every loop must check for null, so we put the filtering into properties such as <code>LivingParty</code>.</li>
+<li>LINQ calls such as <code>Where</code> and <code>OrderBy</code> allocate new objects each time. That is fine in occasional code but needs care in per-frame code.</li>
+<li>.NET does not guarantee the enumeration order of <code>Dictionary</code>, so map generation, which must give the same result for the same seed, avoids removing entries while it runs.</li>
+</ol>
+
+<h2>5.3 Recommendations</h2>
+<p>For future development, the group should switch to A* once terrain with different movement costs is added, pool short-lived combat objects, and index the content tables with a Dictionary as the amount of content grows.</p>
+
+<h1 class="front" data-toc="References">References</h1>
+<div class="ref">
+<p>Cormen, T. H., Leiserson, C. E., Rivest, R. L., &amp; Stein, C. (2022). <i>Introduction to Algorithms</i> (4th ed.). MIT Press.</p>
+<p>Microsoft. (2025). <i>System.Collections.Generic Namespace</i>. Microsoft Learn. https://learn.microsoft.com/dotnet/api/system.collections.generic</p>
+<p>MonoGame Foundation. (2024). <i>MonoGame Documentation</i>. https://docs.monogame.net</p>
+<p>Nystrom, R. (2014). <i>Game Programming Patterns</i>. Genever Benning. https://gameprogrammingpatterns.com</p>
+<p>Patel, A. (2014). <i>Introduction to the A* Algorithm</i>. Red Blob Games. https://www.redblobgames.com/pathfinding/a-star/introduction.html</p>
+</div>
+
+<!-- ============================================================== Appendices -->
+<h1 class="appx" data-n="A" data-toc="Appendix A Map Generation Code">Appendix A<small>Map Generation Code</small></h1>
+{{CODE|Listing A.1 TrialMap.Generate (Trial/TrialMap.cs)}}
+public static TrialMap Generate(TrialDef trial, Random rng, bool withNpcRoom = false, int objectiveRooms = 0)
+{
+    var map = new TrialMap();
+    var start = new Room { Id = 0, Grid = Point.Zero, Type = RoomType.Entrance };
+    map.Rooms[start.Grid] = start;
+    map.Entrance = start;
+    var order = new List<Room> { start };
+
+    // Grow a tree: attach new rooms to random existing ones, biased toward recent rooms
+    int guard = 0;
+    while (map.Rooms.Count < trial.RoomCount && guard++ < 5000)
+    {
+        var from = order[Math.Max(0, order.Count - 1 - (int)(Math.Pow(rng.NextDouble(), 2) * order.Count))];
+        var dir = RoomLayout.AllDirs[rng.Next(4)];
+        var step = RoomLayout.Step(dir);
+        var p = new Point(from.Grid.X + step.X, from.Grid.Y + step.Y);
+        if (Math.Abs(p.X) > GridRadius || Math.Abs(p.Y) > GridRadius || map.Rooms.ContainsKey(p)) continue;
+        if (NeighbourCount(map, p) > 2) continue;          // avoid tight 2x2 clumps
+
+        var room = new Room { Id = map.Rooms.Count, Grid = p, Type = RoomType.Normal };
+        map.Rooms[p] = room;
+        Link(from, room, dir);
+        order.Add(room);
+    }
+
+    // A few extra connections create loops (alternate routes).
+    foreach (var r in map.Rooms.Values)
+        foreach (var d in new[] { Dir.East, Dir.South })
+        {
+            var s = RoomLayout.Step(d);
+            var n = map.At(new Point(r.Grid.X + s.X, r.Grid.Y + s.Y));
+            if (n != null && !r.Links.ContainsKey(d) && rng.NextDouble() < 0.18) Link(r, n, d);
+        }
+
+    map.ComputeDepths();
+    map.AssignTypes(trial, rng, withNpcRoom, objectiveRooms);
+
+    foreach (var r in map.Rooms.Values)
+    {
+        r.Template = rng.Next(RoomLayout.Templates.Length);
+        r.Mirror = rng.Next(2) == 0;
+        r.Layout = RoomLayout.Build(r.Template, r.Mirror, r.Links.Keys);   // doors = keys of Links
+    }
+    return map;
+}
+{{/CODE}}
+
+<h1 class="appx" data-n="B" data-toc="Appendix B Data Structures in the Project">Appendix B<small>Data Structures in the Project</small></h1>
+{{TAB|Fields in the code that are data structures}}
+<table>
+<tr><th style="width:25%">File</th><th style="width:45%">Name : type</th><th>Purpose</th></tr>
+<tr><td>Core/Screen.cs</td><td><code>_stack : List&lt;Screen&gt;</code></td><td>Screen stack</td></tr>
+<tr><td>Core/Assets.cs, Sprites.cs, Audio.cs</td><td><code>Dictionary&lt;string, ...&gt;</code>, <code>Dictionary&lt;(string,uint), SpriteSet&gt;</code></td><td>Image and sound caches</td></tr>
+<tr><td>Trial/TrialMap.cs</td><td><code>Rooms : Dictionary&lt;Point, Room&gt;</code>, <code>Queue&lt;Room&gt;</code></td><td>Room graph and BFS</td></tr>
+<tr><td>Trial/Room.cs</td><td><code>Links : Dictionary&lt;Dir, Room&gt;</code>, <code>Pickups : List&lt;LootPickup&gt;</code></td><td>Adjacency, loot</td></tr>
+<tr><td>Trial/RoomLayout.cs</td><td><code>Tiles : Tile[,]</code>, <code>Templates : string[][]</code>, <code>HashSet&lt;Point&gt;</code></td><td>Room grid and flood fill</td></tr>
+<tr><td>Trial/Pack.cs</td><td><code>Members : List&lt;Hunter&gt;</code>, <code>Queue&lt;Point&gt;</code></td><td>Chasing enemies and BFS</td></tr>
+<tr><td>Trial/TrialRun.cs</td><td><code>Party : List&lt;PartyMember&gt;</code>, <code>Flags : HashSet&lt;string&gt;</code></td><td>State of one Trial</td></tr>
+<tr><td>Combat/Battle.cs</td><td><code>Party, Enemies : Combatant[4]</code>, <code>Fallen : List&lt;Combatant&gt;</code></td><td>Formation</td></tr>
+<tr><td>Combat/Combatant.cs</td><td><code>Statuses : List&lt;StatusInstance&gt;</code></td><td>Status effects</td></tr>
+<tr><td>Combat/CombatAI.cs</td><td><code>List&lt;(T, double)&gt;</code></td><td>Weighted random choice</td></tr>
+<tr><td>Data/ActionDef.cs</td><td><code>Ranks</code> (<code>byte</code> bitmask)</td><td>Skill positions</td></tr>
+<tr><td>Data/NpcDb.cs</td><td><code>Nodes : Dictionary&lt;string, DialogueNode&gt;</code></td><td>Dialogue graph</td></tr>
+<tr><td>Meta/Profile.cs</td><td><code>Dictionary&lt;string, CharacterProgress&gt;</code>, <code>List&lt;string&gt;</code></td><td>Save file</td></tr>
+<tr><td>Screens/CombatScreen.cs</td><td><code>Queue&lt;Combatant&gt;</code>, <code>Queue&lt;BattleEvent&gt;</code>, <code>HashSet&lt;Combatant&gt;</code></td><td>Turn queues, aiming</td></tr>
+</table>
+
+<h1 class="appx" data-n="C" data-toc="Appendix C Sample Save File">Appendix C<small>Sample Save File</small></h1>
+<p>A sample <code>profile.json</code> (the values are made up). The Dictionary becomes a JSON object keyed by id, and the List becomes a JSON array.</p>
+{{CODE|Listing C.1 Sample profile.json}}
+{
+  "SecuredShards": 340,
+  "Characters": {
+    "relle":  { "HpLevel": 2, "DamageLevel": 1, "SpeedLevel": 0, "Weapon": "rusted_blade", "Charm": null },
+    "warden": { "HpLevel": 1, "DamageLevel": 0, "SpeedLevel": 0, "Weapon": null, "Charm": "pale_locket" }
+  },
+  "Stash": [ "butchers_hatchet" ],
+  "PartyOrder": [ "warden", "relle", "hunter", "priest" ],
+  "Quests": { "maren_hunt": { "Progress": 8, "Claimed": true } },
+  "Extractions": 4,
+  "Defeats": 3
+}
+{{/CODE}}

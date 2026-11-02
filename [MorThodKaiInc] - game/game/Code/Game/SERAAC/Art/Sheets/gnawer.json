@@ -1,0 +1,9 @@
+{
+  // Gnawer (Normal). Drawn facing left; the game mirrors it. The tail hangs below the paws, so the
+  // feet are set by hand.
+  "id": "enemy_gnawer",
+  "image": "GnawerSprite.png",
+  "reference": "idle",
+  "facesLeft": true,
+  "frames": [ { "name": "idle", "foot": [140, 165] } ]
+}

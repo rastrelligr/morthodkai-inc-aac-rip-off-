@@ -1,0 +1,15 @@
+{
+  // Shows every kind of change a mod can make. Off by default so it doesn't change the real game:
+  // switch it on in Title screen > Mods (or set "enabled" to true) and restart.
+  "id": "example",
+  "name": "Example Mod",
+  "version": "1.1",
+  "author": "MorThodKai Inc",
+  "description": "A new enemy (Ash Rat), a new striker (Vey), a new weapon, an event, a short trial (Sewers), extra bark lines, and an NPC from its code DLL. Also makes Gnawers tougher and Relle's Cleaver stronger.",
+  "website": "Mods/README.md",
+  "icon": "icon.png",          // in this folder; square, any size
+  "tags": ["content", "sample"],
+  "dependencies": [],          // ids of mods this one needs; they're switched on with it and load first
+  "enabled": false,
+  "priority": 0
+}

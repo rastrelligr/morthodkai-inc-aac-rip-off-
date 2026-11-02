@@ -5,7 +5,7 @@ namespace SERAAC.Data
 {
     public enum QuestGoal
     {
-        KillInfected,        // defeat Target enemies (any trials, counted as you go)
+        KillInfected,        // defeat Target enemies (any trials, counted as they happen)
         WinEliteWith,        // win an Elite fight with GoalCharacter in the party
 
         KillMathCGBoss
@@ -51,7 +51,9 @@ namespace SERAAC.Data
             RewardText = " Default Cube (weapon)",
         };
 
-        public static readonly List<QuestDef> All = new() { MarenHunt, Reflection, MathCG };
+        // MarenHunt and MathCG are out with their givers (Maren / Topsala Tap have no sprites yet, see NpcDb).
+        // Add them back here when those NPCs return.
+        public static readonly List<QuestDef> All = new() { Reflection };
 
         public static QuestDef Get(string id) => All.FirstOrDefault(q => q.Id == id);
     }

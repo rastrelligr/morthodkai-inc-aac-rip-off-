@@ -1,5 +1,5 @@
 {
-  // Placeholder sprite for Bram (single pose). Add more poses to the "frames" list later.
+  // Stand-in for Mara (the Warden, char_warden): this is still Bram's drawing until Mara's sheet arrives.
   "id": "char_warden",
   "image": "Bram.png",
   "reference": "idle",

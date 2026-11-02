@@ -5,7 +5,7 @@ using SERAAC.Data;
 
 namespace SERAAC.Combat
 {
-    public enum BattleEventType { ActionStart, NextHit, Damage, Heal, Status, Cleanse, Move, Death, Fizzle, Info, Passive }
+    public enum BattleEventType { ActionStart, NextHit, Damage, Heal, Status, Cleanse, Move, Death, Fizzle, Info, Passive, Revive }
     public enum BattleOutcome { Ongoing, Victory, Defeat }
 
     // One thing that happened while resolving; the combat screen animates these in order.
@@ -34,17 +34,39 @@ namespace SERAAC.Combat
         public const int StartingSp = 1;
         public const int SpPerTurn = 1;
         public const float PositionPassiveMultiplier = 1.25f; // Frontline / Backline
-        public const float FeastLifesteal = 0.2f;              // fraction of each hit healed back
+        public const float FeastLifesteal = 0.1f;              // fraction of each hit healed back
         public const int FeastThreshold = 3;
         public const float ToughMultiplier = 0.8f;             // Thick Hide: damage taken
         public const float DevotionMultiplier = 1.3f;          // Devotion: healing done
         public const float DeadeyeCritBonus = 0.2f;
         public const float ExploitMultiplier = 1.3f;           // vs Blighted or Marked targets
+        public const int ChargeSp = 2;                         // "Focus" (gather energy; "Advance" in the design doc): extra SP on top of SpPerTurn
+
+        // Mara (Ironbound Aegis / Bulwark / Aegis Wall).
+        public const int AegisThreshold = 2;                   // Guard stacks needed to intercept
+        public const float AegisRedirectMultiplier = 0.5f;     // damage Mara takes from an intercepted attack
+        public const float BulwarkMultiplier = 0.8f;           // damage taken in Front 1 / Front 2
+        public const float WallMultiplier = 0.6f;              // damage taken under Aegis Wall
+        // Elian (Sympathetic Thread / Backline support / Threadweaver).
+        public const float SympatheticMultiplier = 1.5f;       // skill effect on an ally under the threshold
+        public const float SympatheticHpThreshold = 0.5f;
+        public const float SupportMultiplier = 1.2f;           // healing from Back 1 / Back 2
+        public const int ThreadMax = 3;                        // Thread for a Woven skill
+        public const float WovenHealMultiplier = 0.6f;         // a Woven heal reaches everyone, at this share each
+        // Counter-attacks: Mara after intercepting, Pillow while Guarded (Riposte). Power x the defender's Damage.
+        public const float CounterPower = 0.6f;
+        // Apex bosses: second phase at this share of HP (cleanses, gets faster, winds up more often).
+        public const float EnrageHpShare = 0.5f;
+        public const int EnrageSpeed = 2;
 
         public readonly Combatant[] Party = new Combatant[Slots];
         public readonly Combatant[] Enemies = new Combatant[Slots];
         public readonly List<Combatant> Fallen = new();
         public int Turn { get; private set; } = 1;
+
+        // The party's consumables (consumable ids, one entry per item). The combat screen passes the
+        // trial's own list, so items used in a fight are gone from the trial too.
+        public List<string> Items = new();
 
         private readonly Random _rng;
 
@@ -89,6 +111,8 @@ namespace SERAAC.Combat
             switch (a.Side)
             {
                 case TargetSide.Self: return new List<Combatant> { user };
+                case TargetSide.Ally when a.Kind is ActionKind.Swap or ActionKind.Protect or ActionKind.Reweave:
+                    return Allies(user).Where(c => c != null && c.Alive && c != user).ToList();
                 case TargetSide.Ally: return Allies(user).Where(c => c != null && c.Alive && a.TargetRanks.Has(c.Slot)).ToList();
                 default: return Foes(user).Where(c => c != null && c.Alive && a.TargetRanks.Has(c.Slot)).ToList();
             }
@@ -99,30 +123,42 @@ namespace SERAAC.Combat
         {
             if (!a.UsableFrom.Has(user.Slot)) return "Can't use from this position";
             if (user.Sp < a.SpCost) return $"Needs {a.SpCost} SP (has {user.Sp})";
+            // Aegis Wall: Mara stays planted until she acts again.
+            if (HoldsWall(user) && (a.Kind is ActionKind.Swap or ActionKind.Move || a.SelfMoveAfter != 0))
+                return "Holding the Aegis Wall";
             if (a.Kind == ActionKind.Move)
             {
                 int to = user.Slot + a.MoveBy;
                 if (to < 0 || to >= Slots) return "Can't move further";
                 return null;
             }
+            if (a.Kind == ActionKind.Swap) return null;            // there is always another slot
+            if (a.Kind == ActionKind.Item) return Items.Count == 0 ? "No items left" : null;
+            if (a.Kind == ActionKind.Charge)
+                return user.MaxSp == 0 ? "This character doesn't use SP" : user.Sp >= user.MaxSp ? "SP is already full" : null;
             if (ValidTargets(user, a).Count == 0) return "No target in reach";
             return null;
         }
 
         public bool CanUse(Combatant user, ActionDef a) => Unusable(user, a) == null;
 
-        // Speed high -> low. Ties: party first, then front slots first, then spawn order.
+        private static bool HoldsWall(Combatant c) => c.Status(StatusKind.Wall)?.Source == c;
+
+        // Priority actions (Guard, Mara's shields, Snare Line) first, then Speed high -> low (after Slow).
+        // Ties: party first, then front slots first, then spawn order.
         public List<Combatant> ResolveOrder() =>
             Living.Where(c => c.Plan != null)
-                .OrderByDescending(c => c.Speed)
+                .OrderByDescending(c => c.Plan.Action.Priority)
+                .ThenByDescending(c => c.EffectiveSpeed)
                 .ThenBy(c => c.IsParty ? 0 : 1)
                 .ThenBy(c => c.Slot)
                 .ThenBy(c => c.Order)
                 .ToList();
 
-        // Same ordering for the turn-order preview while the player is still choosing.
+        // Same ordering for the turn-order preview while the player is still choosing (planned priority actions move up).
         public List<Combatant> PredictedOrder() =>
-            Living.OrderByDescending(c => c.Speed)
+            Living.OrderByDescending(c => c.Plan?.Action.Priority == true)
+                .ThenByDescending(c => c.EffectiveSpeed)
                 .ThenBy(c => c.IsParty ? 0 : 1)
                 .ThenBy(c => c.Slot)
                 .ThenBy(c => c.Order)
@@ -144,8 +180,13 @@ namespace SERAAC.Combat
                 return ev;
             }
 
-            // Guard and Taunt last "until this character acts again".
+            // Guard and Taunt last "until this character acts again". So do the Protected / Wall this
+            // character set on others (Mara acts late, so "until end of turn" would protect almost nothing).
             actor.Statuses.RemoveAll(s => s.Kind == StatusKind.Guard || s.Kind == StatusKind.Taunt);
+            ClearSourcedBy(actor);
+            _aegisCatch = null;
+            _intercepted = null;
+            _aegisSpent = 0;
 
             var a = plan.Action;
             ev.Add(new BattleEvent { Type = BattleEventType.ActionStart, Actor = actor, Text = a.Name, Action = a });
@@ -164,6 +205,21 @@ namespace SERAAC.Combat
             }
             actor.Sp -= a.SpCost;
 
+            // Blood price (Blood Feast): paid up front, never fatal.
+            if (a.HpCost > 0 && actor.Hp > 1)
+            {
+                int paid = Math.Min(a.HpCost, actor.Hp - 1);
+                actor.Hp -= paid;
+                ev.Add(new BattleEvent { Type = BattleEventType.Damage, Actor = actor, Target = actor, Amount = paid });
+            }
+
+            // Unleashing a wound-up attack ends the wind-up.
+            if (actor.WindUpNext == a)
+            {
+                actor.WindUpNext = null;
+                actor.Statuses.RemoveAll(s => s.Kind == StatusKind.Charging);
+            }
+
             // Feast passive: at 3 stacks this skill always crits and consumes the stacks.
             bool isSkill = !CommonActions.IsCommon(a);
             bool feastCrit = isSkill && actor.Has(PassiveKind.Feast) && actor.Feast >= FeastThreshold;
@@ -173,10 +229,60 @@ namespace SERAAC.Combat
                 ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = actor, Target = actor, Text = "FEAST!" });
             }
 
+            // Threadweaver: at max Thread the next single-target heal / attack is Woven and reaches every valid target.
+            bool woven = isSkill && actor.Has(PassiveKind.Weave) && actor.Thread >= ThreadMax
+                         && a.Kind is ActionKind.Attack or ActionKind.Heal && !a.AreaEffect;
+            if (woven)
+            {
+                actor.Thread = 0;
+                ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = actor, Target = actor, Text = "WOVEN!" });
+            }
+
+            // Iron Rebuke: spends every Guard stack for extra power.
+            if (a.PowerPerAegis > 0)
+            {
+                _aegisSpent = actor.Aegis;
+                actor.Aegis = 0;
+                if (_aegisSpent > 0)
+                    ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = actor, Target = actor, Amount = _aegisSpent, Text = $"Spends {_aegisSpent} Guard" });
+            }
+
             switch (a.Kind)
             {
                 case ActionKind.Move:
                     DoMove(actor, a.MoveBy, ev);
+                    break;
+
+                case ActionKind.Charge:
+                {
+                    int before = actor.Sp;
+                    actor.Sp = Math.Min(actor.MaxSp, actor.Sp + ChargeSp);
+                    ev.Add(new BattleEvent { Type = BattleEventType.Info, Actor = actor, Target = actor, Amount = actor.Sp - before,
+                        Text = $"+{actor.Sp - before} SP" });
+                    break;
+                }
+
+                case ActionKind.Swap:
+                {
+                    // Moves to the chosen slot, swapping with whoever stands there by now (or stepping into it if empty).
+                    int slot = plan.TargetSlot >= 0 ? plan.TargetSlot : plan.Target?.Slot ?? -1;
+                    if (slot < 0 || slot >= Slots || slot == actor.Slot)
+                        ev.Add(new BattleEvent { Type = BattleEventType.Fizzle, Actor = actor, Text = "Already in place" });
+                    else SwapTo(actor, slot, ev);
+                    break;
+                }
+
+                case ActionKind.Item:
+                    UseItem(actor, plan.ItemId, ev);
+                    break;
+
+                case ActionKind.WindUp:
+                    // Telegraphed: next turn the user unleashes a.WindUp unless an Interrupts hit stops it first.
+                    actor.WindUpNext = a.WindUp;
+                    actor.LastWindUpTurn = Turn;
+                    actor.AddStatus(StatusKind.Charging, 1, 0);
+                    ev.Add(new BattleEvent { Type = BattleEventType.Status, Actor = actor, Target = actor, Status = StatusKind.Charging,
+                        Text = $"{a.WindUp?.Name ?? "Something"} next turn!" });
                     break;
 
                 case ActionKind.Defend:
@@ -190,9 +296,45 @@ namespace SERAAC.Combat
                     ev.Add(new BattleEvent { Type = BattleEventType.Status, Actor = actor, Target = actor, Status = StatusKind.Taunt, Text = "Taunt" });
                     break;
 
+                case ActionKind.Protect:
+                {
+                    // Attacks aimed at this ally hit the user instead, until the user acts again.
+                    var ally = plan.Target;
+                    if (ally == null || !ally.Alive || ally == actor || !ValidTargets(actor, a).Contains(ally))
+                    {
+                        ev.Add(new BattleEvent { Type = BattleEventType.Fizzle, Actor = actor, Text = "No ally to protect" });
+                        break;
+                    }
+                    ally.AddStatus(StatusKind.Protected, 1, 0, actor);
+                    ev.Add(new BattleEvent { Type = BattleEventType.Status, Actor = actor, Target = ally, Status = StatusKind.Protected, Text = "Protected" });
+                    break;
+                }
+
+                case ActionKind.Wall:
+                    // The user and the allies next to it take less damage until the user acts again.
+                    foreach (var c in Allies(actor).Where(c => c != null && c.Alive && Math.Abs(c.Slot - actor.Slot) <= 1))
+                    {
+                        c.AddStatus(StatusKind.Wall, 1, 0, actor);
+                        ev.Add(new BattleEvent { Type = BattleEventType.Status, Actor = actor, Target = c, Status = StatusKind.Wall, Text = "Aegis Wall" });
+                    }
+                    break;
+
+                case ActionKind.Reweave:
+                {
+                    // Pull the ally 1 position toward the user; if that spot is taken they swap.
+                    var ally = plan.Target;
+                    if (ally == null || !ally.Alive || ally == actor || !ValidTargets(actor, a).Contains(ally))
+                    {
+                        ev.Add(new BattleEvent { Type = BattleEventType.Fizzle, Actor = actor, Text = "No ally to pull" });
+                        break;
+                    }
+                    DoMove(ally, Math.Sign(actor.Slot - ally.Slot), ev);
+                    break;
+                }
+
                 case ActionKind.Attack:
                 case ActionKind.Heal:
-                    var targets = ResolveTargets(actor, plan, ev);
+                    var targets = woven ? ValidTargets(actor, a) : ResolveTargets(actor, plan, ev);
                     if (targets.Count == 0)
                     {
                         ev.Add(new BattleEvent { Type = BattleEventType.Fizzle, Actor = actor, Text = "No target in reach" });
@@ -208,7 +350,7 @@ namespace SERAAC.Combat
                         foreach (var t in hitList)
                         {
                             if (a.Kind == ActionKind.Attack) ApplyAttack(actor, t, a, feastCrit, ev);
-                            else ApplyHeal(actor, t, a, ev);
+                            else ApplyHeal(actor, t, a, ev, woven ? WovenHealMultiplier : 1f);
                         }
                         landed = true;
                     }
@@ -219,10 +361,23 @@ namespace SERAAC.Combat
             if (a.SelfMoveAfter != 0 && actor.Alive)
                 DoMove(actor, a.SelfMoveAfter, ev, quietIfBlocked: true);
 
-            if (isSkill && actor.Alive && actor.Has(PassiveKind.GuardAfterSkill) && a.Kind != ActionKind.Taunt)
+            if (isSkill && actor.Alive && (actor.Has(PassiveKind.GuardAfterSkill) || actor.Has(PassiveKind.Riposte)) && a.Kind != ActionKind.Taunt)
             {
                 actor.AddStatus(StatusKind.Guard, 1, 0);
                 ev.Add(new BattleEvent { Type = BattleEventType.Status, Actor = actor, Target = actor, Status = StatusKind.Guard, Text = "Guard" });
+            }
+
+            if (a.GainAegis > 0 && actor.Alive && actor.Has(PassiveKind.Aegis))
+            {
+                actor.Aegis = Math.Min(AegisThreshold, actor.Aegis + a.GainAegis);
+                ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = actor, Target = actor, Amount = actor.Aegis,
+                    Text = actor.Aegis >= AegisThreshold ? "Aegis ready!" : $"Guard {actor.Aegis}" });
+            }
+
+            if (a.GainThread > 0 && actor.Alive && !woven)
+            {
+                actor.Thread = Math.Min(ThreadMax, actor.Thread + a.GainThread);
+                ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = actor, Target = actor, Amount = actor.Thread, Text = $"Thread {actor.Thread}" });
             }
 
             if (isSkill && !feastCrit && actor.Alive && actor.Has(PassiveKind.Feast))
@@ -279,27 +434,99 @@ namespace SERAAC.Combat
                 }
             }
 
-            if (target != null && valid.Contains(target)) return new List<Combatant> { target };
-
-            // Chosen target died or moved out of reach: pick the next best valid one.
-            var fallback = a.Kind == ActionKind.Heal
-                ? valid.OrderBy(c => (float)c.Hp / c.MaxHp).First()
-                : valid.OrderBy(c => c.Slot).First();
-            ev.Add(new BattleEvent { Type = BattleEventType.Info, Actor = actor, Target = fallback, Text = $"Retargets {fallback.Name}" });
-            return new List<Combatant> { fallback };
+            if (target == null || !valid.Contains(target))
+            {
+                // Chosen target died or moved out of reach: pick the next best valid one.
+                target = a.Kind == ActionKind.Heal
+                    ? valid.OrderBy(c => (float)c.Hp / c.MaxHp).First()
+                    : valid.OrderBy(c => c.Slot).First();
+                ev.Add(new BattleEvent { Type = BattleEventType.Info, Actor = actor, Target = target, Text = $"Retargets {target.Name}" });
+            }
+            if (a.Kind == ActionKind.Attack) target = Intercept(actor, target, ev);
+            return new List<Combatant> { target };
         }
+
+        // Mara stepping in front of a single-target attack: first her Guard skill (Protected), then the
+        // Ironbound Aegis at 2 stacks (an attack on an ally next to her; she takes reduced damage).
+        private Combatant Intercept(Combatant actor, Combatant target, List<BattleEvent> ev)
+        {
+            var guard = target.Status(StatusKind.Protected)?.Source;
+            if (guard != null && guard.Alive && guard != target && Allies(guard)[guard.Slot] == guard)
+            {
+                ev.Add(new BattleEvent { Type = BattleEventType.Info, Actor = actor, Target = guard, Text = $"{guard.Name} intercepts!" });
+                _intercepted = guard;
+                return guard;
+            }
+            var aegis = Allies(target).FirstOrDefault(c => c != null && c != target && c.Alive && c.Has(PassiveKind.Aegis)
+                                                           && c.Aegis >= AegisThreshold && Math.Abs(c.Slot - target.Slot) == 1);
+            if (aegis != null)
+            {
+                aegis.Aegis = 0;
+                _aegisCatch = aegis;
+                _intercepted = aegis;
+                ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = actor, Target = aegis, Text = "Aegis!" });
+                return aegis;
+            }
+            return target;
+        }
+
+        private Combatant _aegisCatch;   // took this action's hit through the Ironbound Aegis
+        private Combatant _intercepted;  // stepped in front of this action (Guard skill or Aegis): may counter
+        private int _aegisSpent;         // Guard stacks spent by this action (Iron Rebuke)
+
+        // Power of a skill as used now (Iron Rebuke adds per Guard stack spent; previews use the stacks held).
+        private static float PowerOf(ActionDef a, int aegis) => a.Power + a.PowerPerAegis * aegis;
+
+        // Protected / Wall end when whoever set them acts again or falls.
+        private void ClearSourcedBy(Combatant source)
+        {
+            foreach (var c in Party.Concat(Enemies))
+                c?.Statuses.RemoveAll(s => s.Source == source && s.Kind is StatusKind.Protected or StatusKind.Wall);
+        }
+
+        // Everything about the target that scales an attacker's damage (Mark, Guard, Thick Hide, Exploit).
+        // Vulnerabilities / resistances would go here too.
+        public static float TargetMultiplier(Combatant actor, Combatant t)
+        {
+            float m = 1f;
+            if (t.Has(StatusKind.Mark)) m *= MarkMultiplier;
+            if (t.Has(StatusKind.Guard)) m *= GuardMultiplier;
+            if (t.Has(PassiveKind.Tough)) m *= ToughMultiplier;
+            if (t.Has(PassiveKind.Bulwark) && t.Slot <= 1) m *= BulwarkMultiplier;
+            if (t.Has(StatusKind.Wall)) m *= WallMultiplier;
+            if (actor.Has(PassiveKind.Exploit) && (t.Has(StatusKind.Blight) || t.Has(StatusKind.Mark) || t.Has(StatusKind.Slow))) m *= ExploitMultiplier;
+            return m;
+        }
+
+        // Damage range of one hit (no crit), the same formula as ApplyAttack. Target null = before modifiers.
+        public static (int min, int max) EstimateDamage(Combatant actor, Combatant t, ActionDef a)
+        {
+            double baseDmg = actor.Damage * PowerOf(a, actor.Aegis) * PositionBonus(actor, healing: false) * (t == null ? 1f : TargetMultiplier(actor, t));
+            return (Math.Max(1, (int)Math.Round(baseDmg * 0.85)), Math.Max(1, (int)Math.Round(baseDmg * 1.15)));
+        }
+
+        // Healing of one heal, the same formula as ApplyHeal. Target null = before Sympathetic Thread.
+        public static int EstimateHeal(Combatant actor, ActionDef a, Combatant target = null)
+        {
+            float devotion = actor.Has(PassiveKind.Devotion) ? DevotionMultiplier : 1f;
+            float support = actor.Has(PassiveKind.Support) && actor.Slot >= 2 ? SupportMultiplier : 1f;
+            float sympathy = target != null && Sympathetic(actor, target) ? SympatheticMultiplier : 1f;
+            return Math.Max(1, (int)Math.Round(actor.Damage * a.Power * devotion * support * sympathy * PositionBonus(actor, healing: true)));
+        }
+
+        // Sympathetic Thread: Elian's skills on a badly hurt ally work better.
+        public static bool Sympathetic(Combatant actor, Combatant t) =>
+            actor.Has(PassiveKind.Sympathetic) && t.IsParty == actor.IsParty && t.Hp < t.MaxHp * SympatheticHpThreshold;
 
         private void ApplyAttack(Combatant actor, Combatant t, ActionDef a, bool forceCrit, List<BattleEvent> ev)
         {
             double roll = 0.85 + _rng.NextDouble() * 0.30;
-            double dmg = actor.Damage * a.Power * roll * PositionBonus(actor, healing: false);
+            double dmg = actor.Damage * PowerOf(a, _aegisSpent) * roll * PositionBonus(actor, healing: false);
             float critChance = actor.CritChance + (actor.Has(PassiveKind.Deadeye) ? DeadeyeCritBonus : 0f);
             bool crit = forceCrit || _rng.NextDouble() < critChance;
             if (crit) dmg *= CritMultiplier;
-            if (t.Has(StatusKind.Mark)) dmg *= MarkMultiplier;
-            if (t.Has(StatusKind.Guard)) dmg *= GuardMultiplier;
-            if (t.Has(PassiveKind.Tough)) dmg *= ToughMultiplier;
-            if (actor.Has(PassiveKind.Exploit) && (t.Has(StatusKind.Blight) || t.Has(StatusKind.Mark))) dmg *= ExploitMultiplier;
+            dmg *= TargetMultiplier(actor, t);
+            if (t == _aegisCatch) dmg *= AegisRedirectMultiplier;
             int amount = Math.Max(1, (int)Math.Round(dmg));
 
             Hurt(t, amount, actor, ev, crit);
@@ -314,14 +541,37 @@ namespace SERAAC.Combat
                 ev.Add(new BattleEvent { Type = BattleEventType.Status, Actor = actor, Target = t, Status = a.Applies.Value, Text = a.Applies.Value.ToString() });
             }
 
-            for (int i = 0; i < a.KnockBack && t.Alive; i++)
-                DoMove(t, 1, ev, quietIfBlocked: true);
+            // A hit that Interrupts stops a wind-up: the big attack never comes.
+            if (a.Interrupts && t.Alive && t.WindUpNext != null)
+            {
+                if (t.Plan?.Action == t.WindUpNext) t.Plan = null;
+                t.WindUpNext = null;
+                t.Statuses.RemoveAll(s => s.Kind == StatusKind.Charging);
+                ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = actor, Target = t, Text = "INTERRUPTED!" });
+            }
+
+            if (a.KnockBack > 0 && t.Alive && t.Enemy?.TypeDef?.Steadfast == true)
+                ev.Add(new BattleEvent { Type = BattleEventType.Info, Actor = actor, Target = t, Text = "Too heavy to push!" });
+            else
+                for (int i = 0; i < a.KnockBack && t.Alive; i++)
+                    DoMove(t, 1, ev, quietIfBlocked: true);
+            for (int i = 0; i < a.PullForward && t.Alive; i++)
+                DoMove(t, -1, ev, quietIfBlocked: true);
+
+            // Counter-attacks on single-target attacks: Mara after stepping in front of one, Pillow while Guarded.
+            bool counters = t.Alive && actor.Alive && t.IsParty != actor.IsParty && a.IsSingleTarget
+                            && ((t == _intercepted && t.Has(PassiveKind.Aegis)) || (t.Has(PassiveKind.Riposte) && t.Has(StatusKind.Guard)));
+            if (counters)
+            {
+                double back = t.Damage * CounterPower * (0.85 + _rng.NextDouble() * 0.30) * TargetMultiplier(t, actor);
+                ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = t, Target = t, Text = "Riposte!" });
+                Hurt(actor, Math.Max(1, (int)Math.Round(back)), t, ev);
+            }
         }
 
-        private void ApplyHeal(Combatant actor, Combatant t, ActionDef a, List<BattleEvent> ev)
+        private void ApplyHeal(Combatant actor, Combatant t, ActionDef a, List<BattleEvent> ev, float share = 1f)
         {
-            float devotion = actor.Has(PassiveKind.Devotion) ? DevotionMultiplier : 1f;
-            Restore(t, Math.Max(1, (int)Math.Round(actor.Damage * a.Power * devotion * PositionBonus(actor, healing: true))), actor, ev);
+            Restore(t, Math.Max(1, (int)Math.Round(EstimateHeal(actor, a, t) * share)), actor, ev);
             if (a.Cleanse && t.Statuses.RemoveAll(s => s.Kind == StatusKind.Blight || s.Kind == StatusKind.Mark) > 0)
                 ev.Add(new BattleEvent { Type = BattleEventType.Cleanse, Actor = actor, Target = t, Text = "Cleansed" });
         }
@@ -331,6 +581,16 @@ namespace SERAAC.Combat
             t.Hp = Math.Max(0, t.Hp - amount);
             ev.Add(new BattleEvent { Type = BattleEventType.Damage, Actor = source, Target = t, Amount = amount, Crit = crit });
             if (!t.Alive) Kill(t, ev);
+            else if (!t.Enraged && t.Enemy?.Type == EnemyType.Apex && t.Hp <= t.MaxHp * EnrageHpShare) Enrage(t, ev);
+        }
+
+        // Apex second phase: sheds Blight / Mark / Slow, gets faster, and winds up again sooner (CombatAI).
+        private static void Enrage(Combatant t, List<BattleEvent> ev)
+        {
+            t.Enraged = true;
+            t.Speed += EnrageSpeed;
+            t.Statuses.RemoveAll(s => s.Kind is StatusKind.Blight or StatusKind.Mark or StatusKind.Slow);
+            ev.Add(new BattleEvent { Type = BattleEventType.Passive, Actor = t, Target = t, Text = "ENRAGED!" });
         }
 
         private static void Restore(Combatant t, int amount, Combatant source, List<BattleEvent> ev)
@@ -346,8 +606,56 @@ namespace SERAAC.Combat
             var side = Allies(t);
             if (side[t.Slot] == t) side[t.Slot] = null;
             t.Statuses.Clear();
+            ClearSourcedBy(t);
+            t.Aegis = 0;
             Fallen.Add(t);
             ev.Add(new BattleEvent { Type = BattleEventType.Death, Target = t, Text = $"{t.Name} falls" });
+        }
+
+        // Position: jump to any slot on the same side, trading places with its occupant.
+        private void SwapTo(Combatant c, int slot, List<BattleEvent> ev)
+        {
+            var side = Allies(c);
+            int from = c.Slot;
+            var other = side[slot];
+            side[slot] = c;
+            side[from] = other;
+            c.Slot = slot;
+            if (other != null) other.Slot = from;
+            ev.Add(new BattleEvent { Type = BattleEventType.Move, Actor = c, Target = other });
+        }
+
+        // Item: spends one consumable from Items. Missing (already used this turn) = the action fizzles.
+        private void UseItem(Combatant actor, string itemId, List<BattleEvent> ev)
+        {
+            var item = ItemDb.GetConsumable(itemId);
+            if (item == null || !Items.Remove(itemId))
+            {
+                ev.Add(new BattleEvent { Type = BattleEventType.Fizzle, Actor = actor, Text = "No item left" });
+                return;
+            }
+            ev.Add(new BattleEvent { Type = BattleEventType.Info, Actor = actor, Target = actor, Text = item.Name });
+            var side = Allies(actor);
+            switch (item.Effect)
+            {
+                case ConsumableEffect.HealParty:
+                    foreach (var c in side.Where(c => c != null && c.Alive).ToList())
+                        Restore(c, Math.Max(1, (int)Math.Round(c.MaxHp * item.Amount)), actor, ev);
+                    break;
+                case ConsumableEffect.ReviveFallen:
+                    // The fallen stand back up in the rearmost free positions.
+                    foreach (var c in Fallen.Where(f => f.IsParty == actor.IsParty).ToList())
+                    {
+                        int slot = Enumerable.Range(0, Slots).Reverse().FirstOrDefault(s => side[s] == null, -1);
+                        if (slot < 0) break;
+                        Fallen.Remove(c);
+                        c.Hp = Math.Max(1, (int)Math.Round(c.MaxHp * item.Amount));
+                        c.Slot = slot;
+                        side[slot] = c;
+                        ev.Add(new BattleEvent { Type = BattleEventType.Revive, Actor = actor, Target = c, Amount = c.Hp });
+                    }
+                    break;
+            }
         }
 
         // Move one slot; swap if the destination is occupied, step in if it's empty.
@@ -384,8 +692,8 @@ namespace SERAAC.Combat
                     Hurt(c, Math.Max(1, blight.Power), null, ev);
                 }
                 foreach (var s in c.Statuses)
-                    if (s.Kind == StatusKind.Blight || s.Kind == StatusKind.Mark) s.Turns--;
-                c.Statuses.RemoveAll(s => (s.Kind == StatusKind.Blight || s.Kind == StatusKind.Mark) && s.Turns <= 0);
+                    if (s.Kind is StatusKind.Blight or StatusKind.Mark or StatusKind.Slow) s.Turns--;
+                c.Statuses.RemoveAll(s => s.Kind is StatusKind.Blight or StatusKind.Mark or StatusKind.Slow && s.Turns <= 0);
             }
             foreach (var c in Party.Concat(Enemies))
                 if (c != null) c.Plan = null;

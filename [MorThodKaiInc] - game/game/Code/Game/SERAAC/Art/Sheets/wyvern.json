@@ -1,0 +1,8 @@
+{
+  // Wyvern (Apex boss, Fallen Academy). Drawn facing left; the game mirrors it.
+  "id": "enemy_wyvern",
+  "image": "WyvernSprite.png",
+  "reference": "idle",
+  "facesLeft": true,
+  "frames": [ { "name": "idle" } ]
+}

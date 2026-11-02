@@ -1,0 +1,7 @@
+{
+  // Husk while roaming a room: curled up like a larva (EnemyDef.ExploreArtId).
+  "id": "enemy_husk_curled",
+  "image": "HuskSprites.png",
+  "reference": "curled",
+  "frames": [ { "name": "curled", "box": [0, 80, 100, 170] } ]
+}

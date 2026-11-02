@@ -24,7 +24,7 @@ namespace SERAAC.Core
             height = Math.Max(1, height);
             if (_scaled.TryGetValue(height, out var tex)) return tex;
             int w = Math.Max(1, (int)Math.Round(W * (height / (float)H)));
-            var data = Sprites.Resample(Pixels, W, H, w, height);
+            var data = height > H ? Sprites.Nearest(Pixels, W, H, w, height) : Sprites.Resample(Pixels, W, H, w, height);
             tex = new Texture2D(gd, w, height);
             tex.SetData(data);
             _scaled[height] = tex;
@@ -39,11 +39,28 @@ namespace SERAAC.Core
         public string Id;
         public string Reference;
         public float DisplayScale = 1f;
+        public bool FacesLeft;           // drawn facing left on the sheet (the convention is facing right)
         public readonly Dictionary<string, SpriteFrame> Frames = new();
 
+        // Animated poses: name -> its frames in order and frames per second. Idle = the animation played
+        // whenever the reference (resting) pose is drawn; null = a still picture.
+        public readonly Dictionary<string, (string[] frames, float fps)> Animations = new();
+        public string Idle;
+
         public float ReferenceHeight => Frames[Reference].H;
-        public bool Has(string pose) => pose != null && Frames.ContainsKey(pose);
-        public SpriteFrame Get(string pose) => Has(pose) ? Frames[pose] : Frames[Reference];
+        public bool Has(string pose) => pose != null && (Frames.ContainsKey(pose) || Animations.ContainsKey(pose));
+
+        // Animations play on one shared clock, so every copy of a character breathes in step.
+        public SpriteFrame Get(string pose)
+        {
+            string name = Has(pose) ? pose : Idle ?? Reference;
+            if (Animations.TryGetValue(name, out var anim))
+            {
+                int i = (int)(Environment.TickCount64 / 1000.0 * anim.fps) % anim.frames.Length;
+                return Frames[anim.frames[i]];
+            }
+            return Frames[name];
+        }
     }
 
     // Loads sheets described by Art/Sheets/*.json (see Art/README.md). Artists can lay poses out
@@ -57,6 +74,7 @@ namespace SERAAC.Core
             public string Image { get; set; }
             public string Reference { get; set; }
             public float Scale { get; set; } = 1f;   // in-game size multiplier (e.g. a prone sniper drawn smaller)
+            public bool FacesLeft { get; set; }      // the art faces left (the game mirrors it so it faces the right way)
             public List<FrameFile> Frames { get; set; } = new();
         }
 
@@ -66,6 +84,13 @@ namespace SERAAC.Core
             public int[] Box { get; set; }   // x, y, w, h in sheet pixels (rough is fine)
             public int[] Foot { get; set; }  // x, y in sheet pixels; default = bottom centre of the trimmed pose
             public int? FootX { get; set; }  // only x; y = bottom of the trimmed pose
+
+            // An animation laid out as a grid of equal cells (left to right, top to bottom) inside Box
+            // (or the whole image): [columns, rows]. Count = how many cells are used (default all), Fps = speed.
+            // The cells become frames "<name>_0", "<name>_1"... and "<name>" plays them in a loop.
+            public int[] Grid { get; set; }
+            public int? Count { get; set; }
+            public float Fps { get; set; } = 8f;
         }
 
         // Frames are stored no taller than this; the game never draws characters bigger.
@@ -87,7 +112,13 @@ namespace SERAAC.Core
             _gd = gd;
             _root = Path.Combine(AppContext.BaseDirectory, "Art");
             _sheetFiles.Clear();
-            var dir = Path.Combine(_root, "Sheets");
+            // The game's sheets first, then each mod's in load order, so a mod's sheet replaces one with the same id.
+            foreach (var root in Mods.ArtRoots(_root).Reverse())
+                AddSheets(Path.Combine(root, "Sheets"));
+        }
+
+        private static void AddSheets(string dir)
+        {
             if (!Directory.Exists(dir)) return;
             foreach (var json in Directory.GetFiles(dir, "*.json"))
             {
@@ -117,7 +148,7 @@ namespace SERAAC.Core
                 if (_sheetFiles.TryGetValue(id, out var json)) set = LoadSheet(json);
                 else
                 {
-                    var png = Path.Combine(_root, id + ".png");
+                    var png = Mods.ResolveArt(_root, id + ".png");
                     if (File.Exists(png))
                         set = Build(id, png, "default", new List<FrameFile> { new() { Name = "default" } });
                 }
@@ -140,7 +171,7 @@ namespace SERAAC.Core
             var key = (id, mid.PackedValue);
             if (_recolored.TryGetValue(key, out var set)) return set;
 
-            set = new SpriteSet { Id = id + "#" + mid.PackedValue.ToString("x8"), Reference = src.Reference, DisplayScale = src.DisplayScale };
+            set = new SpriteSet { Id = id + "#" + mid.PackedValue.ToString("x8"), Reference = src.Reference, DisplayScale = src.DisplayScale, FacesLeft = src.FacesLeft };
             foreach (var (name, f) in src.Frames)
             {
                 var px = new Color[f.Pixels.Length];
@@ -164,6 +195,7 @@ namespace SERAAC.Core
         public static void Draw(SpriteBatch sb, SpriteSet set, string pose, Vector2 feet, float refHeight, Color tint, bool flip)
         {
             var f = set.Get(pose);
+            flip ^= set.FacesLeft;   // left-facing art: mirror it so "flip" still means "face left"
             float scale = refHeight * set.DisplayScale / set.ReferenceHeight;
             // Resample to the size it will occupy on the real screen, then draw it 1:1 (sharp at any resolution).
             var tex = f.Scaled(_gd, (int)Math.Round(f.H * scale * Core.Draw.Scale));
@@ -178,6 +210,7 @@ namespace SERAAC.Core
         public static void DrawFit(SpriteBatch sb, SpriteSet set, string pose, Rectangle box, Color tint, bool flip = false)
         {
             var f = set.Get(pose);
+            flip ^= set.FacesLeft;   // left-facing art: mirror it so "flip" still means "face left"
             float scale = Math.Min(box.Width / (float)f.W, box.Height / (float)f.H);
             var tex = f.Scaled(_gd, (int)Math.Round(f.H * scale * Core.Draw.Scale));
             float w = tex.Width / Core.Draw.Scale, h = tex.Height / Core.Draw.Scale;
@@ -191,9 +224,61 @@ namespace SERAAC.Core
         {
             var sheet = Parse(jsonPath);
             var image = Path.Combine(Path.GetDirectoryName(jsonPath)!, sheet.Image);
-            var set = Build(sheet.Id, image, sheet.Reference ?? sheet.Frames.FirstOrDefault()?.Name, sheet.Frames);
-            if (set != null) set.DisplayScale = sheet.Scale;
+            var frames = ExpandGrids(sheet.Frames, image, out var animations);
+            string reference = sheet.Reference ?? sheet.Frames.FirstOrDefault()?.Name;
+            string idle = reference != null && animations.ContainsKey(reference) ? reference : null;
+            if (idle != null) reference = animations[idle].frames[0];
+            var set = Build(sheet.Id, image, reference, frames);
+            if (set != null)
+            {
+                set.DisplayScale = sheet.Scale;
+                set.FacesLeft = sheet.FacesLeft;
+                foreach (var (name, anim) in animations) set.Animations[name] = anim;
+                set.Idle = idle;
+            }
             return set;
+        }
+
+        // Grid entries -> one frame per cell. Every cell gets the same foot point (the bottom centre of the area
+        // used by all the cells together), so the character doesn't jitter from frame to frame.
+        private static List<FrameFile> ExpandGrids(List<FrameFile> frames, string imagePath, out Dictionary<string, (string[] frames, float fps)> animations)
+        {
+            animations = new Dictionary<string, (string[], float)>();
+            if (!frames.Any(f => f.Grid is { Length: 2 })) return frames;
+            ImageResult img;
+            using (var stream = File.OpenRead(imagePath))
+                img = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+
+            var list = new List<FrameFile>();
+            foreach (var f in frames)
+            {
+                if (f.Grid is not { Length: 2 } || f.Grid[0] <= 0 || f.Grid[1] <= 0) { list.Add(f); continue; }
+                var area = f.Box is { Length: 4 } ? new Rectangle(f.Box[0], f.Box[1], f.Box[2], f.Box[3]) : new Rectangle(0, 0, img.Width, img.Height);
+                int cols = f.Grid[0], rows = f.Grid[1], cw = area.Width / cols, ch = area.Height / rows;
+                int count = Math.Min(f.Count ?? cols * rows, cols * rows);
+                var cells = Enumerable.Range(0, count).Select(i => new Rectangle(area.X + i % cols * cw, area.Y + i / cols * ch, cw, ch)).ToList();
+
+                // Union of what each cell shows, in cell-local coordinates.
+                int x0 = cw, y0 = ch, x1 = 0, y1 = 0;
+                foreach (var c in cells)
+                {
+                    var t = Trim(img, c);
+                    if (t.Width == 0) continue;
+                    x0 = Math.Min(x0, t.X - c.X); y0 = Math.Min(y0, t.Y - c.Y);
+                    x1 = Math.Max(x1, t.Right - c.X); y1 = Math.Max(y1, t.Bottom - c.Y);
+                }
+                if (x1 <= x0) continue;
+                var names = new string[cells.Count];
+                for (int i = 0; i < cells.Count; i++)
+                {
+                    var c = cells[i];
+                    names[i] = $"{f.Name}_{i}";
+                    int footX = f.FootX.HasValue ? c.X + f.FootX.Value : c.X + (x0 + x1) / 2;
+                    list.Add(new FrameFile { Name = names[i], Box = new[] { c.X, c.Y, cw, ch }, Foot = new[] { footX, c.Y + y1 } });
+                }
+                animations[f.Name] = (names, f.Fps > 0 ? f.Fps : 8f);
+            }
+            return list;
         }
 
         private static SpriteSet Build(string id, string imagePath, string reference, List<FrameFile> frames)
@@ -270,6 +355,18 @@ namespace SERAAC.Core
                 }
             }
             return px;
+        }
+
+        // Nearest-neighbour enlarge: every source pixel becomes a crisp block (pixel art).
+        public static Color[] Nearest(Color[] src, int sw, int sh, int dw, int dh)
+        {
+            var dst = new Color[dw * dh];
+            for (int y = 0; y < dh; y++)
+            {
+                int row = Math.Min(sh - 1, (int)(y * sh / (float)dh)) * sw;
+                for (int x = 0; x < dw; x++) dst[y * dw + x] = src[row + Math.Min(sw - 1, (int)(x * sw / (float)dw))];
+            }
+            return dst;
         }
 
         // Area-average resample (premultiplied input), good for large reductions.

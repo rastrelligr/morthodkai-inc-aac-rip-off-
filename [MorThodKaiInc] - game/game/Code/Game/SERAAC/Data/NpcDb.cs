@@ -29,6 +29,11 @@ namespace SERAAC.Data
         public Action<DialogueContext> OnEnter;      // side effects: start quest, give item, unlock...
         public List<DialogueChoice> Choices = new(); // empty = a single "Continue" that closes
 
+        // Full-screen picture behind the dialogue, from this line on (it stays for the next lines until
+        // another node changes it). Name of a PNG in Art/Dialogue, or a combat background in Art/Stages.
+        // null = keep the current one, "none" = no picture (the room shows through, dimmed).
+        public string Background;
+
         public string TextFor(DialogueContext ctx) => TextFn?.Invoke(ctx) ?? Text;
     }
 
@@ -43,6 +48,10 @@ namespace SERAAC.Data
         public Func<DialogueContext, bool> CanAppear;
         public Func<DialogueContext, string> Entry; // first node, based on current state
         public Dictionary<string, DialogueNode> Nodes;
+
+        // Picture behind this NPC's dialogue when it starts (see DialogueNode.Background).
+        // null = the room's own background, so it matches the area; "none" = no picture.
+        public string Background;
     }
 
     // NPCs met in Trials (Special Room "NPC"). Dialogue is data: nodes + choices + effects.
@@ -51,6 +60,9 @@ namespace SERAAC.Data
         private static DialogueChoice Go(string label, string next, Func<DialogueContext, bool> cond = null) =>
             new() { Label = label, Next = next, If = cond };
 
+        // The Angel, Maren and Topsala Tap are out of the game until they get sprites. To bring one back,
+        // move it out of this comment, add it to All, and restore its quest in Data/QuestDb.cs.
+        /*
         // The goddess who sent Relle into the Trials (World Overview). Offers one blessing per trial,
         // and a little foreshadowing about where Relle's power really comes from.
         private static bool Unblessed(DialogueContext c) => !c.Run.Flags.Contains("angel_blessed");
@@ -177,6 +189,7 @@ namespace SERAAC.Data
                 },
             },
         };
+        */
 
         public static readonly NpcDef Reflection = new()
         {
@@ -220,7 +233,7 @@ namespace SERAAC.Data
             },
         };
 
-        public static readonly List<NpcDef> All = new() { Angel, Maren, Reflection };
+        public static readonly List<NpcDef> All = new() { Reflection };
 
         // Picks who (if anyone) is waiting in this trial's NPC room.
         public static NpcDef PickFor(DialogueContext ctx, Random rng)

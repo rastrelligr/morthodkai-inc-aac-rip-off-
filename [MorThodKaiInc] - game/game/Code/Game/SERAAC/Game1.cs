@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using MonoGame.Extended;
 using SERAAC.Core;
 using SERAAC.Meta;
 using SERAAC.Screens;
@@ -14,7 +15,10 @@ namespace SERAAC
         public const int Width = 1280;
         public const int Height = 720;
 
+        public const string Version = "0.1.3";
+
         public static Game1 Instance { get; private set; }
+        public static bool DevMode { get; private set; }   // --dev: Playtest, Mods and Art Viewer on the title menu
 
         // Permanent progression (secured loot, upgrades, equipment, unlocked areas).
         public Profile Profile { get; set; }
@@ -22,9 +26,13 @@ namespace SERAAC
         private readonly GraphicsDeviceManager _graphics;
         private SpriteBatch _sb;
         private readonly ScreenManager _screens = new();
+        public ScreenManager Screens => _screens;
+        private readonly FramesPerSecondCounter _fps = new();   // MonoGame.Extended; F3 shows it
+        private bool _showFps;
         private readonly ScriptRunner _script;
         private string _pendingShot;
         private bool _startWindowed;
+        private string _startStory;
 
         public Game1(string[] args)
         {
@@ -36,10 +44,14 @@ namespace SERAAC
             };
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            Window.Title = "SERAAC - Prototype";
+            Window.Title = "Aetheris - Prototype v" + Version;
+            DevMode = Array.IndexOf(args, "--dev") >= 0;
             Window.AllowUserResizing = true;
             _graphics.HardwareModeSwitch = false; // borderless fullscreen: no display mode change, fast Alt+Tab
 
+            if (Array.IndexOf(args, "--intro") >= 0) SERAAC.Screens.MainMenuScreen.ForceIntro = true;   // scripts skip the intro unless asked
+            int story = Array.IndexOf(args, "--story");   // jump to a prologue chapter: dorm, spar, airlift, hub, academy
+            if (story >= 0 && story + 1 < args.Length) _startStory = args[story + 1];
             int i = Array.IndexOf(args, "--script");
             if (i >= 0 && i + 1 < args.Length)
             {
@@ -70,10 +82,17 @@ namespace SERAAC
         protected override void LoadContent()
         {
             _sb = new SpriteBatch(GraphicsDevice);
+            Mods.LoadContent();   // mods' content changes, before anything reads the *Db lists or the save
             Assets.Load(GraphicsDevice, Content);
             Sprites.Init(GraphicsDevice);
             Profile = ProfileStore.Load();
-            _screens.Replace(new MainMenuScreen());
+            Settings.Load();
+            if (_startStory != null)
+            {
+                Profile.Story = _startStory;
+                Story.StoryFlow.Resume();
+            }
+            else _screens.Replace(new MainMenuScreen());
         }
 
         protected override void Update(GameTime gameTime)
@@ -84,7 +103,10 @@ namespace SERAAC
                 if (_script.PendingShot != null) _pendingShot = _script.PendingShot;
                 if (_script.Done) Exit();
             }
-            Input.Update();
+            Input.Update(IsActive);
+            Audio.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+            _fps.Update(gameTime);
+            if (Input.Pressed(Keys.F3)) _showFps = !_showFps;
             if (Input.Pressed(Keys.F12)) _pendingShot = "shot_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
             bool altEnter = Input.Pressed(Keys.Enter) && (Input.Down(Keys.LeftAlt) || Input.Down(Keys.RightAlt));
             if (Input.Pressed(Keys.F11) || altEnter)
@@ -107,12 +129,16 @@ namespace SERAAC
             int offsetX = (screen.Width - (int)Math.Round(Width * scale)) / 2;
             int offsetY = (screen.Height - (int)Math.Round(Height * scale)) / 2;
             Core.Draw.Scale = scale;
+            Core.Draw.Offset = new Vector2(offsetX, offsetY);
+            Core.Draw.FrameTransform = Matrix.CreateScale(scale, scale, 1f) * Matrix.CreateTranslation(offsetX, offsetY, 0f);
 
+            UI.Ui.BeginFrame();
             GraphicsDevice.Clear(Color.Black);
-            _sb.Begin(samplerState: SamplerState.PointClamp,
-                transformMatrix: Matrix.CreateScale(scale, scale, 1f) * Matrix.CreateTranslation(offsetX, offsetY, 0f));
+            _sb.Begin(samplerState: SamplerState.PointClamp, transformMatrix: Core.Draw.FrameTransform);
             Core.Draw.Rect(_sb, new Rectangle(0, 0, Width, Height), Palette.Background);
             _screens.Draw(_sb, gameTime);
+            _fps.Draw(gameTime);
+            if (_showFps) Core.Draw.Text(_sb, Assets.Small, $"{_fps.FramesPerSecond} FPS", new Vector2(8, Height - 20), Palette.Accent);
             _sb.End();
 
             if (_pendingShot != null) SaveShot(_pendingShot);

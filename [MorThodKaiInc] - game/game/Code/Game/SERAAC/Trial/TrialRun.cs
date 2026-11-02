@@ -17,6 +17,8 @@ namespace SERAAC.Trial
         public bool Fallen => Hp <= 0;
     }
 
+    public enum ObjectiveUpdate { None, Progress, Completed }
+
     // One Trial from entering to extraction or defeat.
     // Trial Loot (shards, found equipment) is at risk until Extract succeeds.
     public sealed class TrialRun
@@ -31,8 +33,15 @@ namespace SERAAC.Trial
         public int TrialShards { get; private set; }
         public List<string> FoundEquipment { get; } = new();
         public List<string> Consumables { get; } = new();
-        public bool ObjectiveCompleted { get; private set; }
         public int RoomsCleared { get; private set; }
+        public bool FullSp;   // playtest: party starts each fight with full SP
+
+        // This run's Objective, picked from the Trial's pool at the start. Extraction is sealed until it is done.
+        // A trial with an empty pool has no objective, and its extraction is open from the start.
+        public ObjectiveDef Objective { get; private set; }
+        public int ObjectiveProgress { get; private set; }
+        public bool ObjectiveCompleted => Objective == null || ObjectiveProgress >= Objective.Count;
+        public bool CanExtract => ObjectiveCompleted;
 
         // Characters met in this trial who join the Sanctum only if the party extracts.
         public List<string> PendingRecruits { get; } = new();
@@ -42,7 +51,8 @@ namespace SERAAC.Trial
 
         public bool PartyWiped => Party.All(m => m.Fallen);
 
-        public static TrialRun Start(Profile profile, AreaDef area, TrialDef trial, int seed)
+        // objective: force one (playtest menu); null = roll from the trial's pool.
+        public static TrialRun Start(Profile profile, AreaDef area, TrialDef trial, int seed, ObjectiveDef objective = null)
         {
             var run = new TrialRun { Area = area, Trial = trial, Rng = new Random(seed) };
             foreach (var id in profile.PartyOrder)
@@ -51,10 +61,14 @@ namespace SERAAC.Trial
                 var s = Progression.Final(def, profile.Progress(id));
                 run.Party.Add(new PartyMember { Def = def, MaxHp = s.Hp, Hp = s.Hp, Damage = s.Damage, Speed = s.Speed });
             }
+            if (trial.Objectives.Count > 0) run.Objective = trial.Objectives[run.Rng.Next(trial.Objectives.Count)];
+            if (objective != null) run.Objective = objective;
             // At most one NPC per trial, chosen from whoever can currently appear.
             var npc = NpcDb.PickFor(new DialogueContext { Profile = profile, Run = run }, run.Rng);
-            run.Map = TrialMap.Generate(trial, run.Rng, withNpcRoom: npc != null);
+            run.Map = TrialMap.Generate(trial, run.Rng, withNpcRoom: npc != null, objectiveRooms: run.Objective?.RoomCount ?? 0);
             foreach (var room in run.Map.Rooms.Values.Where(r => r.Type == RoomType.Npc)) room.Npc = npc;
+            foreach (var room in run.Map.Rooms.Values.OrderBy(r => r.Id)) room.Encounter = run.EncounterFor(room);
+            run.EnsureObjectiveTargets();
             run.Current = run.Map.Entrance;
             run.Consumables.Add("tonic"); // a small starting kit so the item system is visible early
             profile.TrialsStarted++;
@@ -62,11 +76,27 @@ namespace SERAAC.Trial
             return run;
         }
 
+        // A run that only exists for one staged fight (the story's sparring match): the given party, no map,
+        // no objective, nothing saved. The fight happens in a room of its own.
+        public static TrialRun Sandbox(Profile profile, AreaDef area, TrialDef trial, IEnumerable<string> party, int seed)
+        {
+            var run = new TrialRun { Area = area, Trial = trial, Rng = new Random(seed), Map = new TrialMap() };
+            foreach (var id in party)
+            {
+                var def = CharacterDb.Get(id);
+                if (def == null) continue;
+                var s = Progression.Final(def, profile.Progress(id));
+                run.Party.Add(new PartyMember { Def = def, MaxHp = s.Hp, Hp = s.Hp, Damage = s.Damage, Speed = s.Speed });
+            }
+            run.Current = new Room { Type = RoomType.Normal, Depth = 1, Layout = RoomLayout.Build(0, false, RoomLayout.AllDirs) };
+            return run;
+        }
+
         // ------------------------------------------------------------------ encounters
 
         // Global difficulty knobs, tuned against Relle-level party kits (see the self-test balance report).
         public const float EnemyHpMultiplier = 1.5f;
-        public const float EnemyDamageMultiplier = 1.3f;
+        public const float EnemyDamageMultiplier = 1.6f;
 
         public float EnemyScale(Room room) =>
             1f + 0.06f * Math.Max(0, room.Depth - 1) + 0.25f * (Trial.Tier - 1) + (room.Type == RoomType.Elite ? 0.1f : 0f);
@@ -79,25 +109,48 @@ namespace SERAAC.Trial
 
             switch (room.Type)
             {
-                case RoomType.Objective:
-                    list.Add(Front()); list.Add(Front()); list.Add(Area.Boss);
+                case RoomType.Objective when Objective?.RoomLeader != null:
+                    list.Add(Front()); list.Add(Front()); list.Add(Objective.RoomLeader);
                     break;
-                case RoomType.Elite:
-                    list.Add(Area.Elite); list.Add(Front()); list.Add(Back());
-                    break;
-                default:
+                case RoomType.Objective when Objective?.Guarded == true:
+                case RoomType.Normal:
                     int count = room.Depth <= 1 ? 3 : 4;
                     if (Trial.Tier >= 3) count = Math.Max(3, count);
                     for (int i = 0; i < count; i++) list.Add(i < 2 ? Front() : Back());
+                    break;
+                case RoomType.Elite:
+                    list.Add(Area.Elite); list.Add(Front()); list.Add(Back());
                     break;
             }
             return list;
         }
 
+        // A "defeat N of a Type" objective must be possible: make sure the trial's fights hold at least
+        // one more of that Type than needed (so one room can be skipped), swapping in pool enemies if not.
+        private void EnsureObjectiveTargets()
+        {
+            if (Objective is not { Type: ObjectiveType.DefeatTarget, Target: null }) return;
+            var front = Area.FrontPool.Where(Objective.Counts).ToList();
+            var back = Area.BackPool.Where(Objective.Counts).ToList();
+            if (front.Count + back.Count == 0) return; // content error; the self-test reports it
+            int have = Map.Rooms.Values.Sum(r => r.Encounter.Count(Objective.Counts));
+            var rooms = Map.Rooms.Values.Where(r => r.Type == RoomType.Normal).OrderBy(r => r.Id).ToList();
+            for (int guard = 0; have < Objective.Count + 1 && guard < 200; guard++)
+            {
+                var room = rooms[Rng.Next(rooms.Count)];
+                int i = room.Encounter.FindIndex(e => !Objective.Counts(e));
+                if (i < 0) continue;
+                var pool = (i < 2 ? front : back).Count > 0 ? (i < 2 ? front : back) : front.Concat(back).ToList();
+                room.Encounter[i] = pool[Rng.Next(pool.Count)];
+                have++;
+            }
+        }
+
         public List<Combatant> BuildEnemyCombatants(Room room)
         {
             float scale = EnemyScale(room);
-            return EncounterFor(room).Select(e =>
+            var encounter = room.Encounter.Count > 0 ? room.Encounter : EncounterFor(room);
+            return encounter.Select(e =>
             {
                 var c = Combatant.FromEnemy(e, scale);
                 c.MaxHp = c.Hp = (int)Math.Round(c.MaxHp * EnemyHpMultiplier);
@@ -108,7 +161,12 @@ namespace SERAAC.Trial
 
         // Alive members fill the front slots in the current party order.
         public List<Combatant> BuildPartyCombatants() =>
-            Party.Where(m => !m.Fallen).Select(Combatant.FromMember).ToList();
+            Party.Where(m => !m.Fallen).Select(m =>
+            {
+                var c = Combatant.FromMember(m);
+                if (FullSp) c.Sp = c.MaxSp;   // playtest option: start every fight with full SP
+                return c;
+            }).ToList();
 
         public void ApplyBattleResult(Battle battle)
         {
@@ -124,26 +182,53 @@ namespace SERAAC.Trial
 
         // ------------------------------------------------------------------ room completion & loot
 
-        public void OnCombatWon(Room room, Profile profile)
+        // lootIn: where the drops land (a pack that chased the party into another room drops its loot there).
+        public void OnCombatWon(Room room, Room lootIn = null)
         {
             room.Cleared = true;
             RoomsCleared++;
-            if (room.Type == RoomType.Objective && !ObjectiveCompleted)
+            SpawnLoot(room, lootIn ?? room);
+        }
+
+        // ------------------------------------------------------------------ objective
+
+        // Defeat Target: called after every won fight (event fights too).
+        public ObjectiveUpdate RecordKills(Battle battle, Profile profile)
+        {
+            if (Objective == null || ObjectiveCompleted) return ObjectiveUpdate.None;
+            int n = battle.Fallen.Count(c => !c.IsParty && c.Enemy != null && Objective.Counts(c.Enemy));
+            return Advance(n, profile);
+        }
+
+        // Is this room's objective point (item / object / location) still waiting for the party?
+        public bool ObjectivePointOpen(Room room) =>
+            room.Type == RoomType.Objective && !room.FeatureUsed && Objective != null && Objective.Type != ObjectiveType.DefeatTarget;
+
+        // Collect Item / Interact / Reach Location: the party picked up, used, or reached the room's objective point.
+        public ObjectiveUpdate UseObjectivePoint(Room room, Profile profile)
+        {
+            if (!ObjectivePointOpen(room)) return ObjectiveUpdate.None;
+            room.FeatureUsed = true;
+            return Advance(1, profile);
+        }
+
+        private ObjectiveUpdate Advance(int amount, Profile profile)
+        {
+            if (amount <= 0 || ObjectiveCompleted) return ObjectiveUpdate.None;
+            ObjectiveProgress = Math.Min(Objective.Count, ObjectiveProgress + amount);
+            if (!ObjectiveCompleted) return ObjectiveUpdate.Progress;
+            // Area Progression is saved immediately, independent of extraction.
+            if (Objective.Main && !profile.CompletedObjectives.Contains(Area.ObjectiveId))
             {
-                ObjectiveCompleted = true;
-                // Area Progression is saved immediately, independent of extraction.
-                if (!profile.CompletedObjectives.Contains(Area.ObjectiveId))
-                {
-                    profile.CompletedObjectives.Add(Area.ObjectiveId);
-                    ProfileStore.Save(profile);
-                }
+                profile.CompletedObjectives.Add(Area.ObjectiveId);
+                ProfileStore.Save(profile);
             }
-            SpawnLoot(room);
+            return ObjectiveUpdate.Completed;
         }
 
         public int ShardUnit(Room room) => (int)Math.Round((5 + 2 * room.Depth) * Trial.LootMultiplier);
 
-        public void SpawnLoot(Room room)
+        public void SpawnLoot(Room room, Room placeIn = null)
         {
             int unit = ShardUnit(room);
             int Roll(float mult) => Math.Max(1, (int)Math.Round(unit * mult * (0.8 + Rng.NextDouble() * 0.4)));
@@ -151,6 +236,7 @@ namespace SERAAC.Trial
             var drops = new List<LootPickup>();
             switch (room.Type)
             {
+                case RoomType.Objective when Objective?.RoomLeader == null: // guarded by a normal pack
                 case RoomType.Normal:
                     for (int i = 0, n = 2 + Rng.Next(2); i < n; i++) drops.Add(Shards(Roll(1f)));
                     if (Rng.NextDouble() < 0.2) drops.Add(Rng.NextDouble() < 0.65 ? ConsumableDrop() : EquipmentDrop());
@@ -168,7 +254,7 @@ namespace SERAAC.Trial
                     drops.Add(Rng.NextDouble() < 0.5 ? ConsumableDrop() : EquipmentDrop());
                     break;
             }
-            PlaceDrops(room, drops);
+            PlaceDrops(placeIn ?? room, drops);
         }
 
         public void PlaceDrops(Room room, List<LootPickup> drops)
@@ -185,15 +271,24 @@ namespace SERAAC.Trial
                     // Chest loot bursts out around the chest instead.
                     double ang = i * Math.PI * 2 / drops.Count;
                     pos = new Vector2(feature.X + 0.5f + (float)Math.Cos(ang) * 1.3f, feature.Y + 0.5f + (float)Math.Sin(ang) * 1.3f);
-                    pos = ClampToFloor(room, pos, new Vector2(feature.X + 0.5f, feature.Y + 1.5f));
                 }
-                drops[i].Tile = pos;
+                drops[i].Tile = ClampToFloor(room, pos);
                 room.Pickups.Add(drops[i]);
             }
         }
 
-        private static Vector2 ClampToFloor(Room room, Vector2 pos, Vector2 fallback) =>
-            room.Layout.Solid((int)pos.X, (int)pos.Y) ? fallback : pos;
+        // Loot must sit on a floor tile the party can walk to: not in a pillar, not on the chest / feature.
+        // Anything else moves to the nearest such tile.
+        public static Vector2 ClampToFloor(Room room, Vector2 pos)
+        {
+            var layout = room.Layout;
+            var walkable = layout.Reachable(RoomLayout.EntryTile(room.Links.Keys.FirstOrDefault()));
+            bool Ok(Point t) => walkable.Contains(t) && !layout.Solid(t.X, t.Y) && !(room.HasFeature && t == layout.Feature);
+            var tile = new Point((int)Math.Floor(pos.X), (int)Math.Floor(pos.Y));
+            if (Ok(tile)) return pos;
+            var best = walkable.Where(Ok).OrderBy(t => Vector2.DistanceSquared(new Vector2(t.X + 0.5f, t.Y + 0.5f), pos)).FirstOrDefault(new Point(-1, -1));
+            return best.X < 0 ? pos : new Vector2(best.X + 0.5f, best.Y + 0.5f);
+        }
 
         private static LootPickup Shards(int amount) => new() { Kind = LootKind.Shards, Amount = amount };
 

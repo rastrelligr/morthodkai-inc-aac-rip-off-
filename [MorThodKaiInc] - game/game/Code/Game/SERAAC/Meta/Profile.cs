@@ -49,6 +49,9 @@ namespace SERAAC.Meta
         public List<string> CompletedObjectives { get; set; } = new();
         public List<string> UnlockedCharacters { get; set; } = new();
         public Dictionary<string, QuestState> Quests { get; set; } = new();
+        // Prologue progress (Story/StoryFlow.cs): "" not started, then dorm, spar, airlift, hub, academy, done.
+        public string Story { get; set; } = "";
+        public List<string> StoryFlags { get; set; } = new();   // one-time story events (funds received...)
         public int TrialsStarted { get; set; }
         public int Extractions { get; set; }
         public int Defeats { get; set; }

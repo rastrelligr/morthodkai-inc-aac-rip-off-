@@ -1,0 +1,75 @@
+{
+  // Field names match the C# fields in Data/*.cs. See Mods/README.md for the full format.
+
+  "enemies": [
+    // A new enemy. It has no sprite sheet, so it draws the mock-up monster tinted with "color".
+    {
+      "id": "ash_rat", "name": "Ash Rat", "type": "Normal",
+      "hp": 9, "damage": 2, "speed": 9, "color": "#b08060", "scale": 0.7,
+      "blurb": "A soot-black rat that swarms the front line.",
+      "skills": [
+        { "id": "gnaw", "name": "Gnaw", "kind": "Attack", "power": 0.8, "melee": true,
+          "usableFrom": "12", "targetRanks": "12", "applies": "Blight", "statusTurns": 2, "statusPower": 1, "hitFx": "bile" }
+      ]
+    },
+    // Changing an existing enemy: only the fields given change.
+    { "id": "gnawer", "hp": 16 }
+  ],
+
+  "characters": [
+    {
+      "id": "ex_duelist", "name": "Vey", "role": "Striker",
+      "blurb": "A duelist from a mod. Shares Relle's opener and adds her own finisher.",
+      "baseHp": 26, "baseDamage": 5, "baseSpeed": 7, "maxSp": 5, "color": [150, 90, 200],
+      "passives": [ "Frontline", { "kind": "Deadeye", "name": "Keen Eye", "description": "+20% critical hit chance." } ],
+      "skills": [
+        "pierce",
+        { "id": "ex_flourish", "name": "Flourish", "kind": "Attack", "power": 0.5, "hits": 3, "spCost": 2,
+          "usableFrom": "12", "targetRanks": "12", "melee": true, "hitFx": "slash",
+          "description": "Three quick cuts at an enemy at the front." }
+      ]
+    },
+    // Changing one of Relle's skills in place ("~" = change list entries by id).
+    { "id": "relle", "skills~": [ { "id": "cleaver", "power": 1.5 } ] }
+  ],
+
+  "equipment": [
+    { "id": "ash_fang", "name": "Ash Fang", "slot": "Weapon", "damage": 2, "speed": 1,
+      "flavor": "Still warm.", "minTier": 1 }
+  ],
+
+  "events": [
+    {
+      "id": "ex_shrine", "title": "Cracked Shrine",
+      "text": "Someone left offerings here. The candles are still lit.",
+      "options": [
+        { "label": "Pray", "hint": "Heal the party 15%.", "outcome": "HealParty", "amount": 0.15 },
+        { "label": "Take the offerings", "hint": "Find a consumable.", "outcome": "GainConsumable" }
+      ]
+    }
+  ],
+
+  "areas": [
+    {
+      "id": "city",
+      "frontPool+": [ "ash_rat" ],           // "+" = add to the list
+      "trials+": [
+        { "id": "ex_sewers", "name": "Sewers", "roomCount": 6, "tier": 1, "lootMultiplier": 0.8,
+          "objectives": [ "supply_run", "signal_tower" ],
+          "description": "A short crawl under the streets. Rats." }
+      ]
+    }
+  ],
+
+  "barks": {
+    "relle": { "Kill+": [ "Ash to ash." ] }  // "+" = add lines instead of replacing them
+  },
+
+  // 12x12 pixel icon, using the ink letters in UI/Icons.cs (or drop Art/icon_ash_fang.png in this mod).
+  "icons": {
+    "ash_fang": [
+      "..........kk", ".........kGk", "........kGGk", ".......kGGk.", "......kGok..", "..k..kGGk...",
+      "..kkkoGk....", "...kyyk.....", "..kBkkyk....", ".kBk..kk....", "kBk.........", "kk.........."
+    ]
+  }
+}

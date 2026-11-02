@@ -1,0 +1,3 @@
+# Built from Code/ (dotnet build there).
+*.dll
+*.pdb

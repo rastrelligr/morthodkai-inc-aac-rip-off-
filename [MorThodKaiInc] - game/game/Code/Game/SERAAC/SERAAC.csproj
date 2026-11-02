@@ -5,6 +5,8 @@
     <RollForward>Major</RollForward>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
+    <!-- Fx/Particles.cs: custom MonoGame.Extended particle modifiers work on raw particle pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -19,8 +21,12 @@
     <!-- Old designs, kept for reference only. Never compiled. -->
     <Compile Remove="_Archive/**" />
     <None Remove="_Archive/**" />
+    <!-- Mods are loaded at runtime from Mods/ (see Mods/README.md). Never compiled into the game. -->
+    <Compile Remove="Mods/**" />
     <!-- Runtime art: drop PNGs into Art/ and they replace the placeholder drawing. See Art/README.md. -->
     <None Include="Art/**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Runtime audio: Audio/sfx/*.wav and Audio/music/*.ogg, silent when missing. See Audio/README.md. -->
+    <None Include="Audio/**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="Icon.ico" />
@@ -35,10 +41,12 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Concentus.Oggfile" Version="1.0.6" />
     <PackageReference Include="MonoGame.Extended" Version="6.1.1" />
     <PackageReference Include="MonoGame.Extended.Content.Pipeline" Version="6.1.1" />
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
+    <PackageReference Include="NLayer" Version="1.16.0" />
     <PackageReference Include="StbImageSharp" Version="2.30.16" />
   </ItemGroup>
 </Project>

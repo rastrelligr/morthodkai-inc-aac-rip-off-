@@ -1,0 +1,465 @@
+<div class="cover">
+  <div>
+    {{LOGO}}
+    <div style="font-size:18pt;font-weight:700">รายงาน</div>
+    <div class="t1">เรื่อง การประยุกต์ใช้โครงสร้างข้อมูล<br>ในการพัฒนาเกม Aetheris</div>
+    <div class="t2">(โปรเจกต์ Aetheris)</div>
+  </div>
+  <div class="who">
+    <b>จัดทำโดย</b><br>
+    กลุ่ม MTG (MorThodGame)<br>
+    1. เธียรภาส ธนะสีลังกูร &nbsp; รหัสนักศึกษา 682110122<br>
+    2. จิรายุ โพธิ์ทอง &nbsp; รหัสนักศึกษา 682110107<br>
+    3. อรอักษรา อักษรณรงค์ &nbsp; รหัสนักศึกษา 682110153<br>
+    4. พงศภัค ท่าดีสม &nbsp; รหัสนักศึกษา 682110130
+  </div>
+  <div class="who">
+    <b>เสนอ</b><br>อาจารย์ ดร.เกียรติกร สำอางค์กูล<br><br>
+    รายงานนี้เป็นส่วนหนึ่งของรายวิชา  958211 Data Structure for Game Development<br>
+    ภาคเรียนที่ 1 ปีการศึกษา 2569<br>
+    มหาวิทยาลัยเชียงใหม่
+  </div>
+</div>
+
+<h1 class="front">คำนำ</h1>
+<p>รายงานฉบับนี้เป็นส่วนหนึ่งของรายวิชาโครงสร้างข้อมูล จัดทำขึ้นเพื่ออธิบายโครงสร้างข้อมูลที่กลุ่มนำมาใช้และวางแผนจะนำมาใช้ในการพัฒนาเกม Aetheris (ชื่อโปรเจกต์ Aetheris) ซึ่งเป็นเกมแนว RPG ที่ผู้เล่นพาทีมสี่คนเข้าไปสำรวจด่าน ต่อสู้แบบผลัดตา เก็บของ และเลือกว่าจะถอนตัวกลับหรือเสี่ยงเดินต่อ เกมเขียนด้วยภาษา C# บน .NET 9 และใช้ MonoGame 3.8</p>
+<p>เนื้อหาแบ่งเป็น 5 บท ได้แก่ บทนำ ทฤษฎีที่เกี่ยวข้อง การออกแบบระบบ การนำโครงสร้างข้อมูลไปใช้ในเกม และบทสรุป ตัวอย่างโค้ดและไดอะแกรมทั้งหมดมาจากโค้ดจริงของโปรเจกต์ ท้ายเล่มมีภาคผนวกรวบรวมโค้ดเพิ่มเติมและรายการโครงสร้างข้อมูลทั้งหมดที่ใช้</p>
+<p>คณะผู้จัดทำหวังว่ารายงานนี้จะเป็นประโยชน์แก่ผู้อ่าน หากมีข้อผิดพลาดประการใดขออภัยมา ณ ที่นี้</p>
+<p class="ni" style="text-align:right;margin-top:2em">คณะผู้จัดทำ<br>กลุ่ม MTG</p>
+
+<h1 class="front">สารบัญ</h1>
+{{TOC}}
+
+<h1 class="front">สารบัญภาพ</h1>
+{{LOF}}
+
+<h1 class="front">สารบัญตาราง</h1>
+{{LOT}}
+
+<!-- ============================================================== บทที่ 1 -->
+<h1 class="chap" data-n="1" data-toc="บทที่ 1 บทนำ">บทที่ 1<small>บทนำ</small></h1>
+
+<h2>1.1 ที่มาและความสำคัญ</h2>
+<p>เกมต้องทำงานแบบเรียลไทม์ Aetheris แสดงผลที่ 60 เฟรมต่อวินาที แต่ละเฟรมจึงมีเวลาประมาณ 16.7 มิลลิวินาทีสำหรับรับอินพุต อัปเดตตัวละครและศัตรู และวาดภาพทั้งหมด ถ้าเลือกวิธีเก็บข้อมูลไม่ดี เช่น ค้นหาแบบไล่ทีละตัวในรายการยาว ๆ ทุกเฟรม เกมจะกระตุกได้ง่าย</p>
+<p>นอกจากเรื่องความเร็ว โครงสร้างข้อมูลที่ตรงกับกฎของเกมยังทำให้โค้ดอ่านง่ายและเกิดบั๊กน้อยลง เช่น เอกสารออกแบบกำหนดว่าแถวการรบมี 4 ช่อง และเมื่อมีตัวละครตายช่องนั้นจะว่าง การใช้อาร์เรย์ขนาด 4 ที่ช่องว่างเป็น <code>null</code> ก็ตรงกับกฎนี้โดยตรง</p>
+
+<h2>1.2 วัตถุประสงค์</h2>
+<ol>
+<li>เพื่ออธิบายโครงสร้างข้อมูลที่ใช้ในเกม Aetheris พร้อมไดอะแกรมและโค้ดประกอบ</li>
+<li>เพื่อให้เหตุผลว่าทำไมแต่ละระบบจึงเลือกใช้โครงสร้างข้อมูลนั้น</li>
+<li>เพื่อวิเคราะห์ความซับซ้อนเชิงเวลาของการทำงานหลัก</li>
+<li>เพื่อนำเสนอโครงสร้างข้อมูลที่วางแผนจะใช้ในอนาคต</li>
+</ol>
+
+<h2>1.3 ขอบเขต</h2>
+<p>รายงานนี้ศึกษาจากโค้ดของโปรเจกต์ Aetheris บนกิ่ง <code>dev</code> ประมาณ 60 ไฟล์ C# โดยไม่รวมโค้ดเก่าในโฟลเดอร์ <code>_Archive</code> ครอบคลุมระบบหน้าจอ แผนที่ด่าน ผังห้อง การหาเส้นทาง การต่อสู้ AI ของศัตรู บทสนทนา การโหลดทรัพยากร และการบันทึกเกม</p>
+
+<h2>1.4 ภาพรวมของเกม Aetheris</h2>
+<p>ผู้เล่นเริ่มที่ฐาน (Hub) เลือกตัวละคร 4 คน จัดแถว ใส่อุปกรณ์ และอัปเกรดค่าสถานะ จากนั้นเข้า Trial ซึ่งเป็นด่านที่มีห้องหลายห้องเชื่อมกันและสุ่มใหม่ทุกครั้ง ในห้องอาจมีศัตรู หีบสมบัติ จุดพัก เหตุการณ์ หรือจุดถอนตัว เมื่อเดินชนศัตรูจะเข้าสู่การต่อสู้ ซึ่งผู้เล่นเลือกการกระทำให้ทุกคนก่อน แล้วการกระทำของทั้งสองฝ่ายจะทำงานตามลำดับความเร็ว ของที่เก็บได้ใน Trial จะเป็นของผู้เล่นจริงก็ต่อเมื่อถอนตัวสำเร็จ ถ้าแพ้ของทั้งหมดจะหายไป</p>
+
+<h2>1.5 ประโยชน์ที่คาดว่าจะได้รับ</h2>
+<ol>
+<li>เข้าใจการนำโครงสร้างข้อมูลไปใช้กับโปรแกรมที่ทำงานแบบเรียลไทม์</li>
+<li>เปรียบเทียบข้อดีข้อเสียของโครงสร้างข้อมูลแต่ละแบบก่อนเลือกใช้ได้</li>
+<li>มีเอกสารอ้างอิงสำหรับสมาชิกในกลุ่มเมื่อพัฒนาเกมต่อ</li>
+</ol>
+
+<h2>1.6 นิยามศัพท์</h2>
+{{TAB|นิยามศัพท์ที่ใช้ในรายงาน}}
+<table>
+<tr><th style="width:22%">คำศัพท์</th><th>ความหมาย</th></tr>
+<tr><td>Trial</td><td>ด่านหนึ่งด่าน ประกอบด้วยห้องหลายห้องที่เชื่อมกัน</td></tr>
+<tr><td>Room</td><td>ห้องหนึ่งห้องใน Trial มีประเภท ผังห้อง ทางเชื่อม และสถานะ</td></tr>
+<tr><td>Slot</td><td>ตำแหน่งในแถวการรบ 4 ช่อง: Front 1, Front 2, Back 1, Back 2</td></tr>
+<tr><td>Combatant</td><td>ตัวละครหรือศัตรูหนึ่งตัวในการต่อสู้</td></tr>
+<tr><td>Extraction</td><td>การถอนตัวออกจาก Trial เพื่อเก็บของที่ได้</td></tr>
+<tr><td>Screen</td><td>สถานะหนึ่งของเกม เช่น เมนู ฐาน การสำรวจ การต่อสู้</td></tr>
+</table>
+
+<!-- ============================================================== บทที่ 2 -->
+<h1 class="chap" data-n="2" data-toc="บทที่ 2 ทฤษฎีที่เกี่ยวข้อง">บทที่ 2<small>ทฤษฎีที่เกี่ยวข้อง</small></h1>
+
+<h2>2.1 การวิเคราะห์ประสิทธิภาพ</h2>
+<p>ประสิทธิภาพของการทำงานกับข้อมูลวัดด้วยสัญลักษณ์ Big-O ซึ่งบอกว่าเวลาที่ใช้เพิ่มขึ้นอย่างไรเมื่อข้อมูลมีขนาด n เช่น O(1) ใช้เวลาคงที่ O(n) เพิ่มตามจำนวนข้อมูล และ O(n log n) คือเวลาของการเรียงลำดับที่ดีที่สุดแบบเปรียบเทียบ บางการทำงานคิดแบบเฉลี่ย (amortized) เช่น การเพิ่มข้อมูลท้าย List ที่บางครั้งต้องขยายอาร์เรย์ แต่โดยเฉลี่ยยังเป็น O(1) สำหรับเกมยังต้องคำนึงถึงการจองหน่วยความจำด้วย เพราะ .NET มี Garbage Collector ที่อาจทำให้เกมสะดุดถ้าสร้างวัตถุชั่วคราวมากเกินไป</p>
+
+<h2>2.2 อาร์เรย์และลิสต์</h2>
+<p>อาร์เรย์ (<code>T[]</code>) เก็บข้อมูลต่อเนื่องในหน่วยความจำ เข้าถึงด้วยดัชนีได้ใน O(1) แต่มีขนาดคงที่ อาร์เรย์สองมิติ (<code>T[,]</code>) เหมาะกับข้อมูลแบบตารางหรือกริด ส่วนอาร์เรย์ซ้อน (<code>T[][]</code>) คืออาร์เรย์ของอาร์เรย์ที่แต่ละแถวยาวไม่เท่ากันได้</p>
+<p><code>List&lt;T&gt;</code> คืออาร์เรย์ที่ขยายขนาดได้เอง การเพิ่มท้ายเป็น O(1) แบบเฉลี่ย การเข้าถึงด้วยดัชนีเป็น O(1) แต่การแทรก ลบตรงกลาง หรือค้นหาค่าเป็น O(n) จึงเหมาะกับข้อมูลที่เพิ่มต่อท้ายแล้ววนอ่าน</p>
+
+<h2>2.3 สแตกและคิว</h2>
+<p>สแตกทำงานแบบ LIFO (เข้าทีหลังออกก่อน) มีการทำงาน Push และ Pop ที่เป็น O(1) เหมาะกับงานที่ซ้อนกันแล้วต้องย้อนกลับ เช่น Undo หรือหน้าจอที่เปิดทับกัน คิวทำงานแบบ FIFO (เข้าก่อนออกก่อน) มีการทำงาน Enqueue และ Dequeue ที่เป็น O(1) <code>Queue&lt;T&gt;</code> ของ .NET ใช้บัฟเฟอร์วงกลมจึงไม่ต้องเลื่อนข้อมูล คิวเหมาะกับงานที่ต้องทำตามลำดับที่เข้ามา</p>
+
+<h2>2.4 ตารางแฮช</h2>
+<p>ตารางแฮชเก็บข้อมูลเป็นคู่คีย์กับค่า โดยใช้ฟังก์ชันแฮชของคีย์หาตำแหน่งที่เก็บ ทำให้เพิ่ม ค้นหา และลบได้ใน O(1) โดยเฉลี่ย ใน C# คือ <code>Dictionary&lt;K,V&gt;</code> ส่วน <code>HashSet&lt;T&gt;</code> เก็บเฉพาะคีย์ ใช้ตรวจว่ามีข้อมูลนั้นอยู่หรือไม่ใน O(1) และไม่เก็บค่าซ้ำ คีย์อาจเป็นสตริง enum struct อย่าง <code>Point</code> หรือ tuple ก็ได้</p>
+
+<h2>2.5 กราฟ ต้นไม้ และการค้นหาแนวกว้าง</h2>
+<p>กราฟประกอบด้วยจุดยอดและเส้นเชื่อม แทนในหน่วยความจำได้ด้วยเมทริกซ์ประชิด (ใช้พื้นที่ O(V²)) หรือรายการประชิด (ใช้พื้นที่ O(V + E)) ซึ่งเหมาะกับกราฟที่มีเส้นเชื่อมน้อย ต้นไม้คือกราฟที่เชื่อมถึงกันทั้งหมดและไม่มีวงวน</p>
+<p>การค้นหาแนวกว้าง (Breadth-First Search: BFS) เริ่มจากจุดต้นทางแล้วขยายออกทีละชั้นโดยใช้คิว บนกราฟที่ทุกเส้นมีต้นทุนเท่ากัน BFS จะได้ระยะทางที่สั้นที่สุดไปยังทุกจุดในเวลา O(V + E) ถ้าเก็บจุดก่อนหน้าของแต่ละจุดไว้ก็ย้อนกลับเพื่อสร้างเส้นทางได้ การใช้ BFS บนกริดเพื่อหาพื้นที่ที่เดินถึงได้ทั้งหมดเรียกว่า Flood Fill</p>
+
+<h2>2.6 บิตมาสก์และการเรียงลำดับหลายคีย์</h2>
+<p>บิตมาสก์ใช้บิตแต่ละบิตของจำนวนเต็มแทนสมาชิกของเซตขนาดเล็ก การตรวจสมาชิก การรวม หรือการตรวจสับเซตทำได้ด้วยตัวดำเนินการระดับบิตใน O(1) ส่วนการเรียงหลายคีย์คือเรียงด้วยคีย์หลักก่อนแล้วใช้คีย์รองเมื่อค่าเท่ากัน ใน C# ใช้ <code>OrderBy(...).ThenBy(...)</code> ซึ่งเป็นการเรียงแบบเสถียร (ข้อมูลที่เท่ากันคงลำดับเดิม) ใช้เวลา O(n log n)</p>
+
+{{TAB|ความซับซ้อนของการทำงานหลัก (กรณีเฉลี่ย)}}
+<table>
+<tr><th>โครงสร้าง</th><th>เข้าถึง</th><th>ค้นหาค่า</th><th>เพิ่ม</th><th>ลบ</th></tr>
+<tr><td><code>T[]</code>, <code>T[,]</code></td><td>O(1)</td><td>O(n)</td><td>-</td><td>-</td></tr>
+<tr><td><code>List&lt;T&gt;</code></td><td>O(1)</td><td>O(n)</td><td>O(1) ท้ายลิสต์</td><td>O(n)</td></tr>
+<tr><td>Stack / Queue</td><td>บนสุด/หัวคิว O(1)</td><td>O(n)</td><td>O(1)</td><td>O(1)</td></tr>
+<tr><td><code>Dictionary</code> / <code>HashSet</code></td><td>O(1)</td><td>ตามคีย์ O(1)</td><td>O(1)</td><td>O(1)</td></tr>
+<tr><td>บิตมาสก์</td><td>O(1)</td><td>O(1)</td><td>O(1)</td><td>O(1)</td></tr>
+</table>
+
+<!-- ============================================================== บทที่ 3 -->
+<h1 class="chap" data-n="3" data-toc="บทที่ 3 การออกแบบระบบ">บทที่ 3<small>การออกแบบระบบ</small></h1>
+
+<h2>3.1 โครงสร้างของโปรแกรม</h2>
+<p>โค้ดแบ่งเป็นส่วนตามหน้าที่ <code>Game1</code> คือลูปหลักของ MonoGame ที่เรียก <code>Update()</code> และ <code>Draw()</code> ทุกเฟรม <code>ScreenManager</code> จัดการหน้าจอต่าง ๆ ในรูปแบบสแตก ส่วนกฎของเกมแยกไว้นอกหน้าจอ ได้แก่ Trial (ด่านและห้อง) Combat (กฎการต่อสู้ที่ไม่มีส่วนวาดภาพ) Meta (ข้อมูลที่บันทึกไว้) และ Data (ข้อมูลเนื้อหาของเกม) การแยกแบบนี้ทำให้แต่ละส่วนเลือกโครงสร้างข้อมูลที่เหมาะกับงานของตัวเองได้</p>
+{{FIG:architecture|โครงสร้างของโปรแกรมและโครงสร้างข้อมูลหลักในแต่ละส่วน}}
+
+<h2>3.2 เกณฑ์การเลือกโครงสร้างข้อมูล</h2>
+<p>กลุ่มพิจารณาจาก 4 เรื่อง คือ (1) ระบบนั้นเข้าถึงข้อมูลแบบไหน เช่น ตามดัชนี ตามคีย์ หรือตามลำดับที่เข้ามา (2) ขนาดของข้อมูลคงที่หรือเปลี่ยนได้ และมากน้อยแค่ไหน ถ้าข้อมูลมีไม่เกินสิบตัว การค้นหาเชิงเส้นก็เพียงพอ (3) โค้ดนั้นทำงานทุกเฟรมหรือทำครั้งเดียว และ (4) โครงสร้างนั้นตรงกับกฎในเอกสารออกแบบหรือไม่</p>
+
+{{TAB|ระบบในเกมและโครงสร้างข้อมูลที่ใช้}}
+<table>
+<tr><th style="width:24%">ระบบ</th><th style="width:38%">โครงสร้างข้อมูล</th><th>หัวข้อ</th></tr>
+<tr><td>การจัดการหน้าจอ</td><td>สแตก (<code>List&lt;Screen&gt;</code>)</td><td>4.1</td></tr>
+<tr><td>แผนที่ Trial</td><td>กราฟ <code>Dictionary&lt;Point,Room&gt;</code> และ <code>Dictionary&lt;Dir,Room&gt;</code>, BFS</td><td>4.2</td></tr>
+<tr><td>ผังห้อง</td><td><code>Tile[,]</code>, <code>string[][]</code>, <code>HashSet&lt;Point&gt;</code></td><td>4.3</td></tr>
+<tr><td>การหาเส้นทาง</td><td>BFS ด้วย <code>Queue</code> และ <code>Dictionary</code></td><td>4.4</td></tr>
+<tr><td>แถวการรบ</td><td><code>Combatant[4]</code>, บิตมาสก์ <code>Ranks</code></td><td>4.5</td></tr>
+<tr><td>ลำดับการกระทำ</td><td>การเรียงหลายคีย์, <code>Queue</code> สองชุด</td><td>4.6</td></tr>
+<tr><td>สถานะและ AI</td><td><code>List&lt;StatusInstance&gt;</code>, <code>List&lt;(T, double)&gt;</code></td><td>4.7</td></tr>
+<tr><td>เนื้อหาและบทสนทนา</td><td><code>List</code>, กราฟมีทิศทาง</td><td>4.8</td></tr>
+<tr><td>แคชและแฟล็ก</td><td><code>Dictionary</code>, <code>HashSet</code></td><td>4.9</td></tr>
+<tr><td>การบันทึกเกม</td><td><code>Dictionary</code> และ <code>List</code> แปลงเป็น JSON</td><td>4.10</td></tr>
+</table>
+
+<h2>3.3 แผนภาพคลาส</h2>
+<p>แผนภาพ UML ด้านล่างแสดงคลาสหลักและฟิลด์ที่เป็นโครงสร้างข้อมูล เส้นที่มีข้าวหลามตัดทึบคือความสัมพันธ์แบบ Composition (วัตถุหนึ่งเป็นเจ้าของอีกวัตถุ) เส้นประคือการเรียกใช้ และสามเหลี่ยมคือการสืบทอดคลาส</p>
+{{FIG:uml|แผนภาพคลาส UML ของคลาสหลัก}}
+
+<!-- ============================================================== บทที่ 4 -->
+<h1 class="chap" data-n="4" data-toc="บทที่ 4 การนำโครงสร้างข้อมูลไปใช้ในเกม">บทที่ 4<small>การนำโครงสร้างข้อมูลไปใช้ในเกม</small></h1>
+
+<h2>4.1 สแตกของหน้าจอ</h2>
+<p>เกมมีหลายหน้าจอ เช่น เมนู ฐาน การสำรวจ การต่อสู้ และหน้าสรุปผล เมื่อเกิดการต่อสู้ระหว่างสำรวจ หน้าจอสำรวจต้องหยุดไว้ทั้งหมด แล้วกลับมาที่สถานะเดิมหลังต่อสู้จบ <code>ScreenManager</code> จึงเก็บหน้าจอใน <code>List&lt;Screen&gt;</code> และใช้แบบสแตก โดยท้ายลิสต์คือหน้าจอบนสุด การต่อสู้ถูก Push ทับหน้าจอสำรวจ และ Pop ออกเมื่อจบ หน้าจอสำรวจยังอยู่ในหน่วยความจำครบจึงไม่ต้องสร้างใหม่</p>
+{{FIG:screen_stack|การ Push และ Pop หน้าจอการต่อสู้}}
+{{CODE|โค้ดที่ 4.1 การนำหน้าจอบนสุดออก และการวาดจากล่างขึ้นบน (Core/Screen.cs)}}
+public void PopInstant()
+{
+    if (_stack.Count > 0)
+    {
+        _stack[^1].OnExit();
+        _stack.RemoveAt(_stack.Count - 1);   // remove the top: O(1)
+    }
+    Top?.OnResume();
+}
+
+public void Draw(SpriteBatch sb, GameTime gt)
+{
+    for (int i = FirstVisible(); i < _stack.Count; i++)   // bottom -> top
+        _stack[i].Draw(sb, gt);
+}
+{{/CODE}}
+<p>ที่ใช้ List แทน <code>Stack&lt;T&gt;</code> เพราะหน้าต่างหยุดเกมเป็นแบบโปร่งแสง ต้องวาดหน้าจอด้านล่างด้วย จึงต้องวนจากล่างขึ้นบนด้วยดัชนี ซึ่ง <code>Stack&lt;T&gt;</code> ทำไม่ได้ การ Push และ Pop เป็น O(1)</p>
+
+<h2>4.2 แผนที่ด่านแบบกราฟ</h2>
+<p>ทุกครั้งที่เข้า Trial เกมต้องสุ่มแผนที่ใหม่ ห้องทุกห้องต้องเดินถึงกันได้ มีทางแยกและทางวน และต้องวางห้องพิเศษตามระยะห่างจากทางเข้า เช่น ห้องเป้าหมายอยู่ปลายทางตันที่ลึกที่สุด และจุดถอนตัวต้องอยู่ห่างจากทางเข้าพอสมควร</p>
+<p>แผนที่จึงเก็บเป็นกราฟไม่มีทิศทางสองระดับ ระดับแรกคือ <code>Dictionary&lt;Point, Room&gt; Rooms</code> ที่ใช้พิกัดกริดเป็นคีย์ ใช้หาห้องจากพิกัดหรือตรวจว่าช่องนั้นมีห้องแล้วหรือยังใน O(1) ระดับที่สองคือ <code>Dictionary&lt;Dir, Room&gt; Links</code> ในแต่ละห้อง ซึ่งเป็นรายการประชิดที่ใช้ทิศเป็นคีย์ ห้องหนึ่งมีทางเชื่อมได้ไม่เกิน 4 ทาง และคีย์ยังบอกด้วยว่าต้องเปิดประตูด้านไหน</p>
+{{FIG:map_hash|ตารางแฮชของห้องและรายการประชิดภายในห้อง}}
+<p>การสร้างแผนที่เริ่มจากห้องทางเข้าที่ (0,0) แล้วสุ่มต่อห้องใหม่ออกจากห้องที่มีอยู่ทีละห้อง ห้องใหม่ทุกห้องเชื่อมกับห้องเดิมหนึ่งเส้น ผลที่ได้จึงเป็นต้นไม้ที่ทุกห้องเดินถึงกัน จากนั้นสุ่มเชื่อมห้องที่อยู่ติดกันเพิ่มด้วยโอกาส 18% เพื่อให้เกิดทางวน สุดท้ายใช้ BFS หาความลึก (จำนวนประตูจากทางเข้า) ของทุกห้อง แล้วใช้ค่านี้กำหนดประเภทห้องและความยาก</p>
+{{FIG:trial_map|ตัวอย่างแผนที่ Trial เส้นทึบคือเส้นของต้นไม้ เส้นประคือทางวน และ d คือความลึกจาก BFS}}
+{{CODE|โค้ดที่ 4.2 การเชื่อมห้องสองทางและการหาความลึกด้วย BFS (Trial/TrialMap.cs)}}
+private static void Link(Room a, Room b, Dir aToB)
+{
+    a.Links[aToB] = b;                           // undirected edge = two entries
+    b.Links[RoomLayout.Opposite(aToB)] = a;
+}
+
+private void ComputeDepths()
+{
+    foreach (var r in Rooms.Values) r.Depth = -1;   // -1 = not visited
+    var q = new Queue<Room>();
+    Entrance.Depth = 0;
+    q.Enqueue(Entrance);
+    while (q.Count > 0)
+    {
+        var r = q.Dequeue();
+        foreach (var n in r.Links.Values)
+            if (n.Depth < 0) { n.Depth = r.Depth + 1; q.Enqueue(n); }
+    }
+    MaxDepth = Rooms.Values.Max(r => r.Depth);
+}
+{{/CODE}}
+<p>เหตุที่ไม่ใช้อาร์เรย์ <code>Room[9,9]</code> เพราะแผนที่มีเพียง 8–15 ห้องจาก 81 ช่อง และพิกัดติดลบได้ Dictionary เก็บเฉพาะห้องที่มีจริง เหตุที่ใช้ BFS แทน DFS เพราะต้องการระยะทางที่สั้นที่สุดจากทางเข้า ซึ่ง DFS ไม่รับประกันเมื่อมีทางวน BFS ใช้เวลา O(V + E) และทำครั้งเดียวตอนเริ่ม Trial</p>
+
+<h2>4.3 ผังห้องแบบอาร์เรย์สองมิติ</h2>
+<p>ภายในห้องแบ่งเป็นช่องขนาด 48 พิกเซล เกมต้องรู้ว่าช่องไหนเดินได้ ช่องไหนเป็นกำแพงหรือเสา และจุดไหนวางของได้ การตรวจการชนเกิดทุกเฟรมกับตัวละครและศัตรูทุกตัว จึงต้องเร็ว</p>
+<p>ผังห้องต้นแบบ 5 แบบเก็บเป็น <code>string[][] Templates</code> โดยแต่ละตัวอักษรแทนหนึ่งช่อง (<code>.</code> พื้น <code>o</code> เสา <code>L</code> จุดวางของ <code>F</code> วัตถุพิเศษ) ทำให้แก้ผังห้องได้ง่ายเหมือนวาดด้วยตัวอักษร เมื่อสร้างห้องจริง เกมแปลงเทมเพลตเป็น <code>Tile[21,12]</code> (สุ่มกลับซ้ายขวาได้) และเปิดประตูตามทิศใน <code>Links</code></p>
+{{CODE|โค้ดที่ 4.3 การแปลงเทมเพลตเป็นอาร์เรย์สองมิติและการตรวจช่องทึบ (Trial/RoomLayout.cs)}}
+for (int iy = 0; iy < InnerRows; iy++)
+    for (int ix = 0; ix < InnerCols; ix++)
+    {
+        char ch = src[iy][mirror ? InnerCols - 1 - ix : ix];   // mirror = read the row backwards
+        int x = ix + 1, y = iy + 1;                            // +1: outer wall ring
+        layout.Tiles[x, y] = ch switch { 'o' => Tile.Pillar, ',' => Tile.Decor, _ => Tile.Floor };
+        if (ch == 'L') layout.LootSpots.Add(new Point(x, y));
+    }
+
+public bool Solid(int x, int y) =>
+    x < 0 || y < 0 || x >= Cols || y >= Rows || Tiles[x, y] == Tile.Wall || Tiles[x, y] == Tile.Pillar;
+{{/CODE}}
+<p>ห้องมีขนาดคงที่และทุกช่องมีข้อมูล อาร์เรย์สองมิติจึงเหมาะที่สุด <code>Solid(x, y)</code> เป็น O(1) นอกจากนี้เมธอด <code>Reachable()</code> ยังใช้ BFS กับ <code>HashSet&lt;Point&gt;</code> หาทุกช่องที่เดินถึงได้จากประตู เกมใช้ผลนี้เลือกจุดเกิดของศัตรู (<code>Pack.Spawn</code>) และย้ายของที่ดรอปให้อยู่บนพื้นที่เดินถึงได้ (<code>TrialRun.ClampToFloor</code>)</p>
+
+<h2>4.4 การหาเส้นทางด้วย BFS</h2>
+<p>ผู้เล่นคลิกที่ใดก็ได้ในห้องเพื่อให้ตัวละครเดินไป และศัตรูที่ไล่ตามก็ต้องหาเส้นทางไปหาผู้เล่นใหม่เป็นระยะ ทั้งสองระบบใช้ BFS บนกริดของห้อง โดยใช้ <code>Queue&lt;Point&gt;</code> เก็บช่องที่รอสำรวจ และ <code>Dictionary&lt;Point, Point&gt; prev</code> เก็บช่องก่อนหน้าของแต่ละช่อง ซึ่งใช้แทนเซตของช่องที่เยี่ยมแล้วไปในตัว เมื่อถึงปลายทางก็ย้อนตาม <code>prev</code> กลับไปต้นทางแล้วกลับลำดับลิสต์</p>
+{{FIG:bfs_mechanics|คิว ตารางช่องก่อนหน้า และการย้อนรอยสร้างเส้นทาง}}
+{{CODE|โค้ดที่ 4.4 การหาเส้นทางด้วย BFS (Screens/ExplorationScreen.cs)}}
+private List<Point> FindPath(Point from, Point to)
+{
+    if (from == to) return new List<Point> { to };
+    var prev = new Dictionary<Point, Point> { [from] = from };
+    var q = new Queue<Point>();
+    q.Enqueue(from);
+    while (q.Count > 0)
+    {
+        var p = q.Dequeue();
+        if (p == to) break;                                  // shortest path found
+        foreach (var d in RoomLayout.AllDirs)
+        {
+            var s = RoomLayout.Step(d);
+            var n = new Point(p.X + s.X, p.Y + s.Y);
+            if (prev.ContainsKey(n) || !Walkable(n)) continue;
+            prev[n] = p;
+            q.Enqueue(n);
+        }
+    }
+    if (!prev.ContainsKey(to)) return null;                  // unreachable
+    var path = new List<Point>();
+    for (var c = to; c != from; c = prev[c]) path.Add(c);
+    path.Reverse();
+    return path;
+}
+{{/CODE}}
+<p>ภาพที่ 4.5 แสดงผลการทำงานบนผังห้อง Plaza จริง ตัวเลขในแต่ละช่องคือระยะทาง BFS จากประตูด้านซ้าย มีช่องที่เดินถึงได้ {{REACH}} ช่อง และเส้นทางไปยังหน้าวัตถุพิเศษยาว {{PATH_LEN}} ก้าว หลังได้เส้นทางแล้ว เกมจะตัดจุดที่เดินเป็นเส้นตรงถึงได้ออก เพื่อให้ตัวละครเดินตัดมุมแทนการเดินซิกแซก</p>
+{{FIG:tile_grid|ผังห้อง Plaza ใน Tile[21,12] พร้อมระยะทาง BFS และเส้นทางที่สั้นที่สุด}}
+<p>กลุ่มเลือก BFS แทน A* เพราะห้องมีเพียง 252 ช่องและทุกก้าวมีต้นทุนเท่ากัน BFS จึงได้เส้นทางที่สั้นที่สุดเหมือนกัน โค้ดสั้นกว่า และไม่ต้องใช้คิวลำดับความสำคัญ ความซับซ้อนคือ O(W × H) เมื่อ W × H คือจำนวนช่องในห้อง</p>
+
+<h2>4.5 แถวการรบและบิตมาสก์ของตำแหน่ง</h2>
+<p>ตามเอกสารออกแบบ แต่ละฝ่ายมี 4 ตำแหน่ง ตัวละครสลับตำแหน่งได้ และเมื่อมีตัวตาย ตำแหน่งนั้นจะว่างโดยไม่มีใครเลื่อนขึ้นมาแทน <code>Battle</code> จึงใช้อาร์เรย์ <code>Combatant[4]</code> สำหรับแต่ละฝ่าย ดัชนีคือหมายเลขตำแหน่ง (0 = Front 1 ถึง 3 = Back 2) และช่องว่างมีค่า <code>null</code> ตัวที่ตายแล้วย้ายไปเก็บใน <code>List&lt;Combatant&gt; Fallen</code></p>
+{{FIG:formation|อาร์เรย์แถวการรบ การสลับตำแหน่ง และช่องว่างเมื่อมีตัวตาย}}
+{{CODE|โค้ดที่ 4.5 การสลับตำแหน่งและการตาย (Combat/Battle.cs)}}
+private void SwapTo(Combatant c, int slot, List<BattleEvent> ev)
+{
+    var side = Allies(c);
+    int from = c.Slot;
+    var other = side[slot];        // may be null (empty slot)
+    side[slot] = c;
+    side[from] = other;
+    c.Slot = slot;
+    if (other != null) other.Slot = from;
+}
+
+private void Kill(Combatant t, List<BattleEvent> ev)
+{
+    var side = Allies(t);
+    if (side[t.Slot] == t) side[t.Slot] = null;   // the position becomes empty
+    Fallen.Add(t);
+}
+{{/CODE}}
+<p>ถ้าใช้ List แล้วลบตัวที่ตายออก ตัวที่อยู่ข้างหลังจะเลื่อนขึ้นมาเอง ซึ่งผิดกฎของเกม อาร์เรย์ที่มีช่อง <code>null</code> จึงตรงกว่า และการหาว่าใครอยู่ตำแหน่งไหนหรือการสลับตำแหน่งเป็น O(1) ข้อเสียคือทุกครั้งที่วนต้องตรวจ <code>null</code></p>
+<p>สกิลแต่ละอย่างกำหนดว่าใช้ได้จากตำแหน่งไหนและโจมตีตำแหน่งไหนได้ ข้อมูลนี้เก็บในโครงสร้าง <code>Ranks</code> ซึ่งเป็น struct ที่มี <code>byte</code> เพียงตัวเดียว บิตที่ 0–3 แทนตำแหน่งทั้ง 4 การตรวจว่ามีตำแหน่งนั้นหรือไม่ใช้ AND กับ <code>1 &lt;&lt; slot</code> และการตรวจสับเซตใช้ <code>(a &amp; ~b) == 0</code> ทุกการทำงานเป็น O(1) และไม่ต้องจองหน่วยความจำ</p>
+{{FIG:ranks|การเก็บเซตของตำแหน่งด้วยบิตมาสก์}}
+{{CODE|โค้ดที่ 4.6 โครงสร้าง Ranks (Data/ActionDef.cs)}}
+public readonly struct Ranks
+{
+    private readonly byte _bits;
+
+    public static Ranks Of(string ranks)              // "12" -> 0b0011
+    {
+        byte b = 0;
+        foreach (char ch in ranks)
+            if (ch >= '1' && ch <= '4') b |= (byte)(1 << (ch - '1'));
+        return new Ranks(b);
+    }
+
+    public bool Has(int slot) => slot >= 0 && slot < 4 && (_bits & (1 << slot)) != 0;
+    public bool Within(Ranks other) => _bits != 0 && (_bits & ~other._bits) == 0;
+}
+{{/CODE}}
+
+<h2>4.6 ลำดับการกระทำและคิวเหตุการณ์</h2>
+<p>ในแต่ละเทิร์น ผู้เล่นเลือกการกระทำให้ทุกคน (กดย้อนกลับได้) จากนั้นการกระทำทั้งหมดทำงานตามลำดับ คือการกระทำแบบ Priority ก่อน แล้วเรียงตามความเร็วจากมากไปน้อย ถ้าเท่ากันให้ฝ่ายผู้เล่นและตำแหน่งหน้าได้ก่อน กฎคำนวณผลได้ทันที แต่ภาพต้องแสดงทีละขั้น</p>
+<p>ช่วงเลือกการกระทำใช้ <code>List&lt;Combatant&gt;</code> กับตัวชี้ตำแหน่ง การกดย้อนกลับคือลดตัวชี้ลงหนึ่ง ซึ่งทำงานแบบสแตก เมื่อเลือกครบ <code>ResolveOrder()</code> จะเรียงด้วยหลายคีย์ แล้วใส่ลง <code>Queue&lt;Combatant&gt;</code> เกมดึงผู้กระทำออกทีละตัว <code>Battle.Execute()</code> คืนรายการเหตุการณ์ (ความเสียหาย การเคลื่อนที่ การตาย) ซึ่งถูกใส่ลง <code>Queue&lt;BattleEvent&gt;</code> อีกชุดเพื่อเล่นแอนิเมชันทีละรายการ</p>
+{{FIG:turn_pipeline|ลำดับการทำงานในหนึ่งเทิร์น}}
+{{CODE|โค้ดที่ 4.7 การเรียงหลายคีย์และการใช้คิวสองชุด (Combat/Battle.cs, Screens/CombatScreen.cs)}}
+public List<Combatant> ResolveOrder() =>
+    Living.Where(c => c.Plan != null)
+        .OrderByDescending(c => c.Plan.Action.Priority)
+        .ThenByDescending(c => c.EffectiveSpeed)
+        .ThenBy(c => c.IsParty ? 0 : 1)
+        .ThenBy(c => c.Slot)
+        .ThenBy(c => c.Order)          // spawn order: no ties left
+        .ToList();
+
+// CombatScreen
+if (_events.Count > 0) _timer = PlayEvent(_events.Dequeue());
+else if (_resolveQueue.Count > 0)
+{
+    var actor = _resolveQueue.Dequeue();
+    foreach (var e in _battle.Execute(actor)) _events.Enqueue(e);
+}
+{{/CODE}}
+<p>มีตัวละครในการต่อสู้ไม่เกิน 8 ตัว การเรียงครั้งเดียว O(n log n) จึงพอ และยังใช้แสดงแถบลำดับเทิร์นบนจอได้ด้วย การเรียงแบบเสถียรและคีย์สุดท้ายที่ไม่ซ้ำทำให้ลำดับออกมาเหมือนเดิมทุกครั้ง ส่วนคิวสองชุดทำให้ส่วนกฎกับส่วนแอนิเมชันแยกกัน และเหตุการณ์แสดงตามลำดับที่เกิดจริง</p>
+
+<h2>4.7 สถานะผิดปกติและ AI ของศัตรู</h2>
+<p>ตัวละครแต่ละตัวเก็บสถานะผิดปกติ (เช่น Guard, Mark, Slow) ใน <code>List&lt;StatusInstance&gt;</code> ถ้าได้รับสถานะชนิดที่มีอยู่แล้ว เกมจะรวมกับรายการเดิมโดยเก็บค่าที่มากกว่า แทนการเพิ่มรายการซ้ำ สถานะมีเพียง 8 ชนิด การค้นหาเชิงเส้นจึงเร็วพอ และ <code>RemoveAll()</code> ลบสถานะตามเงื่อนไขได้ในรอบเดียว</p>
+<p>ศัตรูเลือกเป้าหมายแบบสุ่มถ่วงน้ำหนัก (Roulette Wheel) โดยสร้าง <code>List&lt;(Combatant, double)&gt;</code> ของเป้าหมายพร้อมน้ำหนัก ตัวที่เลือดน้อยหรือติด Mark มีน้ำหนักมากขึ้น และคูณด้วยค่าความชอบตำแหน่งของศัตรูแต่ละประเภท (<code>float[4]</code>) จากนั้นสุ่มตัวเลขระหว่าง 0 ถึงผลรวมน้ำหนัก แล้วลบน้ำหนักทีละตัวจนค่าน้อยกว่าหรือเท่ากับศูนย์ ใช้เวลา O(n) ซึ่งพอเพราะมีเป้าหมายไม่เกิน 4 ตัว</p>
+{{FIG:weighted|การสุ่มเป้าหมายแบบถ่วงน้ำหนัก}}
+
+<h2>4.8 ข้อมูลเนื้อหาและกราฟบทสนทนา</h2>
+<p>ข้อมูลตัวละคร ศัตรู ไอเทม และด่าน เก็บเป็น <code>List</code> ในคลาส <code>CharacterDb</code>, <code>EnemyDb</code>, <code>ItemDb</code> เป็นต้น เพราะส่วนใหญ่ถูกวนอ่านทั้งชุด เช่น ตอนแสดงเมนูหรือสุ่มศัตรู และลำดับในลิสต์คือลำดับที่แสดงผล</p>
+<p>บทสนทนาของ NPC เป็นกราฟมีทิศทาง เก็บใน <code>Dictionary&lt;string, DialogueNode&gt;</code> แต่ละโหนดมีข้อความและรายการตัวเลือก ตัวเลือกแต่ละตัวคือเส้นเชื่อมที่ชี้ไปโหนดถัดไปด้วยชื่อ และมีเงื่อนไขซ่อนตัวเลือกได้ การอ้างอิงโหนดด้วยชื่อทำให้วนกลับไปโหนดเดิมได้ง่าย และหาโหนดถัดไปได้ใน O(1)</p>
+{{FIG:dialogue|กราฟบทสนทนาของ NPC ชื่อ Maren}}
+
+<h2>4.9 แคชทรัพยากรและแฟล็ก</h2>
+<p>การโหลดภาพ ตัดเฟรม ย่อขยาย หรือเปลี่ยนสี sprite ใช้เวลานาน เกมจึงเก็บผลไว้ใน <code>Dictionary</code> เมื่อเรียกครั้งแรกจะโหลดแล้วเก็บไว้ ครั้งต่อไปดึงจากตารางได้ทันที คีย์มีหลายแบบ เช่น ชื่อไฟล์ (<code>string</code>) ความสูงของภาพ (<code>int</code>) หรือ tuple <code>(string, uint)</code> สำหรับ sprite ที่เปลี่ยนสีแล้ว ซึ่งไม่ต้องต่อสตริงเป็นคีย์</p>
+{{FIG:cache|การแคชทรัพยากรด้วย Dictionary}}
+<p>สำหรับข้อมูลแบบ "เกิดขึ้นแล้วหรือยัง" เกมใช้ <code>HashSet</code> เช่น <code>TrialRun.Flags</code> เก็บเหตุการณ์ที่เกิดใน Trial นี้เพื่อใช้เป็นเงื่อนไขของบทสนทนา และหน้าจอการต่อสู้ใช้ <code>HashSet&lt;Combatant&gt;</code> เก็บตัวที่ถูกเล็งอยู่ ซึ่งต้องตรวจทุกตัวทุกเฟรม</p>
+
+<h2>4.10 การบันทึกเกม</h2>
+<p>ข้อมูลที่คงอยู่ข้าม Trial อยู่ในคลาส <code>Profile</code> และบันทึกเป็นไฟล์ JSON ระดับอัปเกรดและอุปกรณ์ของตัวละครเก็บใน <code>Dictionary&lt;string, CharacterProgress&gt;</code> โดยใช้รหัสตัวละครเป็นคีย์ ถ้าเพิ่มตัวละครใหม่ภายหลังไฟล์บันทึกเก่าก็ยังใช้ได้ ส่วนลำดับทีมและคลังอุปกรณ์เก็บใน <code>List&lt;string&gt;</code> เพราะลำดับมีความหมาย ทั้ง Dictionary และ List แปลงเป็น JSON ได้โดยตรง (ตัวอย่างในภาคผนวก ค) ของที่ได้ระหว่าง Trial เก็บแยกใน <code>TrialRun</code> และย้ายเข้า <code>Profile</code> เฉพาะเมื่อถอนตัวสำเร็จ</p>
+
+<h2>4.11 โครงสร้างข้อมูลที่วางแผนจะใช้</h2>
+{{TAB|โครงสร้างข้อมูลที่วางแผนจะนำมาใช้}}
+<table>
+<tr><th style="width:26%">โครงสร้างข้อมูล</th><th>ใช้กับ และเหตุผล</th></tr>
+<tr><td><code>PriorityQueue</code> และ A*</td><td>ถ้าเพิ่มพื้นที่ที่เดินช้า (เช่น โคลน) กราฟจะมีน้ำหนัก BFS จะไม่ได้เส้นทางที่ดีที่สุดอีก ต้องเปลี่ยนเป็น A*</td></tr>
+<tr><td>Object Pool (<code>Stack&lt;T&gt;</code>)</td><td>นำวัตถุชั่วคราว เช่น ตัวเลขดาเมจ กลับมาใช้ใหม่ ลดงานของ Garbage Collector</td></tr>
+<tr><td>บัฟเฟอร์วงกลม</td><td>บันทึกการต่อสู้ตอนนี้ใช้ <code>List.RemoveAt(0)</code> ซึ่งเป็น O(n) บัฟเฟอร์วงกลมทำได้ใน O(1)</td></tr>
+<tr><td>Spatial Hash</td><td>ถ้าในห้องมีศัตรูมาก ใช้แบ่งพื้นที่เป็นช่องเพื่อตรวจการชนเฉพาะตัวที่อยู่ใกล้กัน</td></tr>
+<tr><td>DAG และ Topological Sort</td><td>เงื่อนไขการปลดล็อกพื้นที่และภารกิจ เพื่อหาลำดับที่ถูกต้องและตรวจว่าไม่มีเงื่อนไขวนกัน</td></tr>
+</table>
+
+<!-- ============================================================== บทที่ 5 -->
+<h1 class="chap" data-n="5" data-toc="บทที่ 5 สรุปผลและข้อเสนอแนะ">บทที่ 5<small>สรุปผลและข้อเสนอแนะ</small></h1>
+
+<h2>5.1 สรุปผล</h2>
+<p>เกม Aetheris ใช้โครงสร้างข้อมูลพื้นฐานครบทุกกลุ่มในรายวิชา และเลือกตามลักษณะการใช้งานของแต่ละระบบ ดังตารางที่ 5.1 ระบบที่ทำงานทุกเฟรม เช่น การตรวจการชนและการเล็งเป้า ใช้การทำงานแบบ O(1) ส่วนงานที่หนักกว่า เช่น BFS และการสร้างแผนที่ ทำเป็นครั้งคราวกับข้อมูลขนาดเล็ก</p>
+{{TAB|สรุปโครงสร้างข้อมูลที่ใช้ในเกม}}
+<table>
+<tr><th style="width:26%">โครงสร้างข้อมูล</th><th>การใช้งานในเกม</th></tr>
+<tr><td>อาร์เรย์ / อาร์เรย์สองมิติ</td><td>แถวการรบ 4 ช่อง ผังห้อง 21×12</td></tr>
+<tr><td>List</td><td>ข้อมูลเนื้อหา สถานะผิดปกติ ของดรอป</td></tr>
+<tr><td>สแตก</td><td>หน้าจอ การย้อนกลับตอนเลือกการกระทำ</td></tr>
+<tr><td>คิว</td><td>BFS ลำดับผู้กระทำ ลำดับเหตุการณ์</td></tr>
+<tr><td>Dictionary / HashSet</td><td>ห้องตามพิกัด รายการประชิด แคช บทสนทนา แฟล็ก ไฟล์บันทึก</td></tr>
+<tr><td>กราฟ / ต้นไม้</td><td>แผนที่ Trial กราฟบทสนทนา</td></tr>
+<tr><td>บิตมาสก์</td><td>ตำแหน่งที่สกิลใช้ได้และโจมตีได้</td></tr>
+</table>
+
+<h2>5.2 ปัญหาที่พบ</h2>
+<ol>
+<li>การใช้ <code>null</code> แทนช่องว่างในแถวการรบทำให้ต้องตรวจ null ทุกครั้งที่วน กลุ่มจึงรวมการกรองไว้ใน property เช่น <code>LivingParty</code></li>
+<li>คำสั่ง LINQ เช่น <code>Where</code> และ <code>OrderBy</code> สร้างวัตถุใหม่ทุกครั้ง ใช้ได้ในโค้ดที่ทำงานนาน ๆ ครั้ง แต่ต้องระวังในโค้ดที่ทำงานทุกเฟรม</li>
+<li>.NET ไม่รับประกันลำดับการวนของ <code>Dictionary</code> การสร้างแผนที่ที่ต้องได้ผลเหมือนเดิมเมื่อใช้ seed เดิมจึงต้องหลีกเลี่ยงการลบข้อมูลระหว่างสร้าง</li>
+</ol>
+
+<h2>5.3 ข้อเสนอแนะ</h2>
+<p>ในการพัฒนาต่อ กลุ่มควรเปลี่ยนไปใช้ A* เมื่อมีพื้นที่ที่มีต้นทุนการเดินต่างกัน ทำ Object Pool สำหรับวัตถุชั่วคราวในการต่อสู้ และสร้างดัชนีแบบ Dictionary ให้ข้อมูลเนื้อหาเมื่อจำนวนข้อมูลเพิ่มขึ้น</p>
+
+<h1 class="front" data-toc="บรรณานุกรม">บรรณานุกรม</h1>
+<div class="ref">
+<p>Cormen, T. H., Leiserson, C. E., Rivest, R. L., &amp; Stein, C. (2022). <i>Introduction to Algorithms</i> (4th ed.). MIT Press.</p>
+<p>Microsoft. (2025). <i>System.Collections.Generic Namespace</i>. Microsoft Learn. https://learn.microsoft.com/dotnet/api/system.collections.generic</p>
+<p>MonoGame Foundation. (2024). <i>MonoGame Documentation</i>. https://docs.monogame.net</p>
+<p>Nystrom, R. (2014). <i>Game Programming Patterns</i>. Genever Benning. https://gameprogrammingpatterns.com</p>
+<p>Patel, A. (2014). <i>Introduction to the A* Algorithm</i>. Red Blob Games. https://www.redblobgames.com/pathfinding/a-star/introduction.html</p>
+</div>
+
+<!-- ============================================================== ภาคผนวก -->
+<h1 class="appx" data-n="ก" data-toc="ภาคผนวก ก โค้ดการสร้างแผนที่">ภาคผนวก ก<small>โค้ดการสร้างแผนที่</small></h1>
+{{CODE|โค้ด ก.1 TrialMap.Generate (Trial/TrialMap.cs)}}
+public static TrialMap Generate(TrialDef trial, Random rng, bool withNpcRoom = false, int objectiveRooms = 0)
+{
+    var map = new TrialMap();
+    var start = new Room { Id = 0, Grid = Point.Zero, Type = RoomType.Entrance };
+    map.Rooms[start.Grid] = start;
+    map.Entrance = start;
+    var order = new List<Room> { start };
+
+    // Grow a tree: attach new rooms to random existing ones, biased toward recent rooms
+    int guard = 0;
+    while (map.Rooms.Count < trial.RoomCount && guard++ < 5000)
+    {
+        var from = order[Math.Max(0, order.Count - 1 - (int)(Math.Pow(rng.NextDouble(), 2) * order.Count))];
+        var dir = RoomLayout.AllDirs[rng.Next(4)];
+        var step = RoomLayout.Step(dir);
+        var p = new Point(from.Grid.X + step.X, from.Grid.Y + step.Y);
+        if (Math.Abs(p.X) > GridRadius || Math.Abs(p.Y) > GridRadius || map.Rooms.ContainsKey(p)) continue;
+        if (NeighbourCount(map, p) > 2) continue;          // avoid tight 2x2 clumps
+
+        var room = new Room { Id = map.Rooms.Count, Grid = p, Type = RoomType.Normal };
+        map.Rooms[p] = room;
+        Link(from, room, dir);
+        order.Add(room);
+    }
+
+    // A few extra connections create loops (alternate routes).
+    foreach (var r in map.Rooms.Values)
+        foreach (var d in new[] { Dir.East, Dir.South })
+        {
+            var s = RoomLayout.Step(d);
+            var n = map.At(new Point(r.Grid.X + s.X, r.Grid.Y + s.Y));
+            if (n != null && !r.Links.ContainsKey(d) && rng.NextDouble() < 0.18) Link(r, n, d);
+        }
+
+    map.ComputeDepths();
+    map.AssignTypes(trial, rng, withNpcRoom, objectiveRooms);
+
+    foreach (var r in map.Rooms.Values)
+    {
+        r.Template = rng.Next(RoomLayout.Templates.Length);
+        r.Mirror = rng.Next(2) == 0;
+        r.Layout = RoomLayout.Build(r.Template, r.Mirror, r.Links.Keys);   // doors = keys of Links
+    }
+    return map;
+}
+{{/CODE}}
+
+<h1 class="appx" data-n="ข" data-toc="ภาคผนวก ข รายการโครงสร้างข้อมูลในโปรเจกต์">ภาคผนวก ข<small>รายการโครงสร้างข้อมูลในโปรเจกต์</small></h1>
+{{TAB|ฟิลด์ที่เป็นโครงสร้างข้อมูลในโค้ด}}
+<table>
+<tr><th style="width:25%">ไฟล์</th><th style="width:43%">ชื่อ : ชนิด</th><th>หน้าที่</th></tr>
+<tr><td>Core/Screen.cs</td><td><code>_stack : List&lt;Screen&gt;</code></td><td>สแตกของหน้าจอ</td></tr>
+<tr><td>Core/Assets.cs, Sprites.cs, Audio.cs</td><td><code>Dictionary&lt;string, ...&gt;</code>, <code>Dictionary&lt;(string,uint), SpriteSet&gt;</code></td><td>แคชภาพและเสียง</td></tr>
+<tr><td>Trial/TrialMap.cs</td><td><code>Rooms : Dictionary&lt;Point, Room&gt;</code>, <code>Queue&lt;Room&gt;</code></td><td>กราฟห้องและ BFS</td></tr>
+<tr><td>Trial/Room.cs</td><td><code>Links : Dictionary&lt;Dir, Room&gt;</code>, <code>Pickups : List&lt;LootPickup&gt;</code></td><td>รายการประชิด ของดรอป</td></tr>
+<tr><td>Trial/RoomLayout.cs</td><td><code>Tiles : Tile[,]</code>, <code>Templates : string[][]</code>, <code>HashSet&lt;Point&gt;</code></td><td>ผังห้อง และ Flood Fill</td></tr>
+<tr><td>Trial/Pack.cs</td><td><code>Members : List&lt;Hunter&gt;</code>, <code>Queue&lt;Point&gt;</code></td><td>ศัตรูที่ไล่ตามและ BFS</td></tr>
+<tr><td>Trial/TrialRun.cs</td><td><code>Party : List&lt;PartyMember&gt;</code>, <code>Flags : HashSet&lt;string&gt;</code></td><td>สถานะของ Trial</td></tr>
+<tr><td>Combat/Battle.cs</td><td><code>Party, Enemies : Combatant[4]</code>, <code>Fallen : List&lt;Combatant&gt;</code></td><td>แถวการรบ</td></tr>
+<tr><td>Combat/Combatant.cs</td><td><code>Statuses : List&lt;StatusInstance&gt;</code></td><td>สถานะผิดปกติ</td></tr>
+<tr><td>Combat/CombatAI.cs</td><td><code>List&lt;(T, double)&gt;</code></td><td>การสุ่มถ่วงน้ำหนัก</td></tr>
+<tr><td>Data/ActionDef.cs</td><td><code>Ranks</code> (บิตมาสก์ <code>byte</code>)</td><td>ตำแหน่งของสกิล</td></tr>
+<tr><td>Data/NpcDb.cs</td><td><code>Nodes : Dictionary&lt;string, DialogueNode&gt;</code></td><td>กราฟบทสนทนา</td></tr>
+<tr><td>Meta/Profile.cs</td><td><code>Dictionary&lt;string, CharacterProgress&gt;</code>, <code>List&lt;string&gt;</code></td><td>ไฟล์บันทึก</td></tr>
+<tr><td>Screens/CombatScreen.cs</td><td><code>Queue&lt;Combatant&gt;</code>, <code>Queue&lt;BattleEvent&gt;</code>, <code>HashSet&lt;Combatant&gt;</code></td><td>คิวเทิร์น การเล็งเป้า</td></tr>
+</table>
+
+<h1 class="appx" data-n="ค" data-toc="ภาคผนวก ค ตัวอย่างไฟล์บันทึกเกม">ภาคผนวก ค<small>ตัวอย่างไฟล์บันทึกเกม</small></h1>
+<p>ตัวอย่างไฟล์ <code>profile.json</code> (ค่าเป็นค่าสมมติ) Dictionary กลายเป็น JSON object ที่ใช้รหัสเป็นชื่อฟิลด์ และ List กลายเป็น JSON array</p>
+{{CODE|โค้ด ค.1 ตัวอย่างไฟล์ profile.json}}
+{
+  "SecuredShards": 340,
+  "Characters": {
+    "relle":  { "HpLevel": 2, "DamageLevel": 1, "SpeedLevel": 0, "Weapon": "rusted_blade", "Charm": null },
+    "warden": { "HpLevel": 1, "DamageLevel": 0, "SpeedLevel": 0, "Weapon": null, "Charm": "pale_locket" }
+  },
+  "Stash": [ "butchers_hatchet" ],
+  "PartyOrder": [ "warden", "relle", "hunter", "priest" ],
+  "Quests": { "maren_hunt": { "Progress": 8, "Claimed": true } },
+  "Extractions": 4,
+  "Defeats": 3
+}
+{{/CODE}}

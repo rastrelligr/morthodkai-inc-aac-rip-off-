@@ -1,9 +1,11 @@
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using MonoGame.Extended.Tweening;
 using SERAAC.Core;
 using SERAAC.Data;
 using SERAAC.Trial;
+using SERAAC.UI;
 
 namespace SERAAC.Screens
 {
@@ -22,27 +24,53 @@ namespace SERAAC.Screens
             _abandoned = abandoned;
         }
 
+        public override void OnEnter()
+        {
+            if (_extracted) Audio.Play("secured");
+        }
+
         public override void Update(GameTime gameTime)
         {
             _age += (float)gameTime.ElapsedGameTime.TotalSeconds;
-            if (_age > 0.8f && (Input.Confirm || Input.Cancel))
-                Screens.Replace(new HubScreen());
+            if (_age > 0.8f && (Input.Confirm || Input.Cancel || UI.Ui.Clicked("continue")))
+                Screens.Replace(Meta.Playtest.Active ? new PlaytestScreen() : new HubScreen());   // playtests return to their menu
         }
 
         public override void Draw(SpriteBatch sb, GameTime gameTime)
         {
             var profile = Game1.Instance.Profile;
-            var accent = _extracted ? Palette.Accent : Palette.Danger;
+            double t = gameTime.TotalGameTime.TotalSeconds;
+            var accent = _extracted ? Palette.Gold : Palette.Danger;
             string title = _extracted ? "EXTRACTED" : _abandoned ? "TRIAL ABANDONED" : "THE PARTY HAS FALLEN";
-            Core.Draw.TextCentered(sb, Assets.Title, title, new Vector2(Game1.Width / 2, 120), accent);
-            Core.Draw.TextCentered(sb, Assets.Body, $"{_run.Area.Name}  -  {_run.Trial.Name}", new Vector2(Game1.Width / 2, 170), Palette.TextDim);
+            Ui.Backdrop(sb, t, _extracted ? 0.6f : 0.25f);
+            Core.Draw.Rect(sb, new Rectangle(0, 0, Game1.Width, Game1.Height), Palette.Ink * (_extracted ? 0.35f : 0.55f));
 
-            var box = new Rectangle(Game1.Width / 2 - 380, 220, 760, 340);
-            Core.Draw.Panel(sb, box, border: accent);
-            float y = box.Y + 24;
+            // Eased reveal (MonoGame.Extended EasingFunctions): the title fades in, then each line slides in after the last.
+            float titleIn = MathHelper.Clamp(Ease.Progress(_age, 0.6f, EasingFunctions.CubicOut), 0, 1);
+            var titleCenter = new Vector2(Game1.Width / 2f, 110);
+            if (_extracted)
+                // A victory band, like a boss being slain: lines of gold light above and below the title.
+                Ui.Banner(sb, title, titleCenter, Game1.Width, accent, titleIn, Assets.Title, 92, 12);
+            else
+            {
+                // Game over: the title spaced wide over a crest, with a long divider under it.
+                Core.Draw.SoftGlow(sb, titleCenter, new Vector2(700, 200), accent * 0.15f * titleIn);
+                Core.Draw.Ornament(sb, titleCenter + new Vector2(0, -50), 22, Palette.Paper * 0.6f * titleIn);
+                Core.Draw.SpacedCentered(sb, Assets.Title, title, titleCenter + new Vector2(0, (1 - titleIn) * 10), Palette.Paper * titleIn, 12);
+                Core.Draw.Divider(sb, titleCenter + new Vector2(0, 34), 640 * titleIn, Palette.Paper * 0.55f);
+                Core.Draw.Diamond(sb, titleCenter + new Vector2(0, 34), 7, Palette.Paper * 0.8f * titleIn);
+            }
+            Core.Draw.TextCentered(sb, Assets.Body, $"{_run.Area.Name}  -  {_run.Trial.Name}", new Vector2(Game1.Width / 2, 178), Palette.TextDim * titleIn, shadow: false);
+
+            var box = new Rectangle(Game1.Width / 2 - 380, 216, 760, 364);
+            Core.Draw.Panel(sb, box);
+            Ui.SectionBar(sb, new Rectangle(box.X + 12, box.Y + 10, box.Width - 24, 24), _extracted ? "Secured" : "Lost", _extracted ? Palette.Rose : Palette.Danger);
+            float y = box.Y + 46;
+            int line = 0;
             void Line(string s, Color c)
             {
-                Core.Draw.Text(sb, Assets.Body, s, new Vector2(box.X + 30, y), c);
+                float a = Ease.Progress(_age - 0.3f - line++ * 0.08f, 0.35f, EasingFunctions.CubicOut);
+                RichText.Line(sb, Assets.Body, s, new Vector2(box.X + 40 - (1 - a) * 40, y), c, a);
                 y += 30;
             }
 
@@ -68,15 +96,27 @@ namespace SERAAC.Screens
             }
             y += 10;
             Line($"Rooms cleared: {_run.RoomsCleared}    Rooms explored: {_run.Map.Rooms.Values.Count(r => r.Visited)} / {_run.Map.Rooms.Count}", Palette.Text);
-            if (_run.Trial.HasMainObjective)
-                Line(_run.ObjectiveCompleted ? $"Main Objective complete: {_run.Area.ObjectiveName}  (saved)" : "Main Objective not completed",
+            if (_run.Objective is { } o)
+                Line(_run.ObjectiveCompleted
+                        ? $"Objective complete: {o.Name}" + (o.Main ? $"  -  Main Objective '{_run.Area.ObjectiveName}' saved" : "")
+                        : $"Objective not completed: {o.Name}" + (o.Count > 1 ? $"  ({_run.ObjectiveProgress} / {o.Count})" : ""),
                     _run.ObjectiveCompleted ? Palette.Heal : Palette.TextDim);
             y += 10;
             foreach (var m in _run.Party)
                 Line($"   {m.Def.Name,-12} {(m.Fallen ? "fallen" : $"{m.Hp}/{m.MaxHp} HP")}", m.Fallen ? Palette.TextDisabled : Palette.Text);
 
             if (_age > 0.8f)
-                Core.Draw.TextCentered(sb, Assets.Body, "Enter - return to the Sanctum", new Vector2(Game1.Width / 2, 620), Palette.TextDim);
+            {
+                // One choice, drawn like a title-menu row: a line of light under it and the pointer beside it.
+                const string label = "Return to the Sanctum";
+                var center = new Vector2(Game1.Width / 2f, 612);
+                var size = Assets.Body.MeasureString(label, 1.25f);
+                Core.Draw.GlowLine(sb, center + new Vector2(0, 16), 520, Palette.Rose, 24);
+                Core.Draw.TextSizedCentered(sb, Assets.Body, label, center, Palette.Paper, 1.25f);
+                Core.Draw.Pointer(sb, new Vector2(center.X - size.X / 2 - 60, center.Y + 1), t);
+                UI.Ui.Hit("continue", new Rectangle((int)(center.X - 260), (int)center.Y - 22, 520, 44));
+                UI.Ui.Footer(sb, "continue", ("Enter", "Confirm"));
+            }
         }
     }
 }

@@ -36,11 +36,23 @@ namespace SERAAC.Trial
         public EventDef Event;
         public NpcDef Npc;              // who stands in an NPC room
 
-        public bool IsCombatRoom => Type == RoomType.Normal || Type == RoomType.Elite || Type == RoomType.Objective;
+        // The enemies in this room, rolled when the trial starts (empty = no fight here). While exploring they
+        // roam the room and chase the party (Trial/Pack.cs); touching one starts the fight.
+        public List<EnemyDef> Encounter = new();
+        public Pack Pack;               // their live positions while the party is in the room
+        public bool Alerted;            // its pack has spotted the party before: on guard when the party comes back
+
+        // Combat background (an image listed in Art/Stages/backgrounds.json). Picked by BackgroundDb the
+        // first time a fight starts here, then kept so the room looks the same in a later fight.
+        // Set it earlier (e.g. in TrialMap) to force a background for a room.
+        public string StageId;
+
+        public bool IsCombatRoom => Encounter.Count > 0;
+        public bool HasEnemies => IsCombatRoom && !Cleared;
         public bool IsSpecial => Type != RoomType.Normal && Type != RoomType.Entrance;
         public bool HasFeature => Type != RoomType.Normal;
 
-        // Special rooms are revealed on the map once you're next to them.
+        // Special rooms are revealed on the map once the party is next to them.
         public string MapLabel => Type switch
         {
             RoomType.Entrance => "S",
@@ -63,7 +75,7 @@ namespace SERAAC.Trial
             RoomType.Rest => "Shrine",
             RoomType.Event => Event?.Title ?? "Strange Room",
             RoomType.Extraction => "Extraction Point",
-            RoomType.Objective => "Objective",
+            RoomType.Objective => "Objective Site",
             RoomType.Npc => Npc?.Name ?? "Quiet Room",
             _ => "Room",
         };

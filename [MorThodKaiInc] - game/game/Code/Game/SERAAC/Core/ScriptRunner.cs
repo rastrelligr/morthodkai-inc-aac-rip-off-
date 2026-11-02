@@ -10,6 +10,7 @@ namespace SERAAC.Core
     // at the keyboard:  SERAAC.exe --script path/to/script.txt
     //   wait <frames>          press <Key> [times]      hold <Key> <frames>
     //   shot <name>            quit
+    //   click <x> <y>          left click at a 1280x720 layout position
     public sealed class ScriptRunner
     {
         private readonly Queue<string[]> _commands = new();
@@ -41,6 +42,7 @@ namespace SERAAC.Core
             if (_releaseTap)
             {
                 Input.Injected.Clear();
+                Input.InjectedClick = null;
                 _releaseTap = false;
                 return;
             }
@@ -76,6 +78,11 @@ namespace SERAAC.Core
                     _holding = Enum.Parse<Keys>(c[1], true);
                     _holdFrames = int.Parse(c[2], CultureInfo.InvariantCulture);
                     Input.Injected.Add(_holding.Value);
+                    break;
+                case "click":
+                    Input.InjectedClick = new Microsoft.Xna.Framework.Vector2(
+                        float.Parse(c[1], CultureInfo.InvariantCulture), float.Parse(c[2], CultureInfo.InvariantCulture));
+                    _releaseTap = true;
                     break;
                 case "shot": PendingShot = c[1]; break;
                 case "quit": Done = true; break;

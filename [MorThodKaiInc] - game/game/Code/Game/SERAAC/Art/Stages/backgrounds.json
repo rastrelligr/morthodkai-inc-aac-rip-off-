@@ -1,0 +1,73 @@
+{
+  // Combat backgrounds (pre-rendered, 1280x720 or bigger). See README.md in this folder.
+  // Saved changes apply while the game runs. Naming: <Area>_<N normal / E elite / B boss>_<number>.
+  "backgrounds": [
+    // ---- Abandoned City
+    {
+      "image": "City_N_New1",
+      "trial": ["city_outskirt", "city_academy"],   // the Academy borrows these until its own art is done
+      "use": [ "normal", "elite" ]
+    },
+    {
+      "image": "City_N_New2",
+      "trial": ["city_outskirt", "city_academy"],
+      "use": [ "normal", "elite" ]
+    },
+    {
+      "image": "City_N_New3",
+      "trial": ["city_outskirt", "city_academy"],
+      "use": [ "normal", "elite" ]
+    },
+
+    // ---- The Wyvern's arena (Fallen Academy boss). The files' "Frontground" is the plaza floor the fighters
+    // stand on, so it sits behind them (depth under 1); the floating debris is the far middle layer.
+    {
+      "image": "Academy_Boss",
+      "area": "city",
+      "use": [ "boss" ],
+      "enemies": [ "wyvern" ],
+      "layers": [
+        { "image": "Academy_Boss_Background", "depth": 0.1 },
+        { "image": "Academy_Boss_Middleground", "depth": 0.35 },
+        { "image": "Academy_Boss_Frontground", "depth": 0.8 }
+      ]
+    }
+
+    // ---- Parallax: an entry's image name also finds its layers automatically.
+    // City_N_New2 draws City_N_New2_Backdrop.png + _Background.png + _Middleground.png (+ _Foreground.png
+    // when it exists), each moving by its depth in _camera.json. To use other files or depths:
+    // { "image": "City_N_New2", "trial": "city_outskirt", "use": ["normal"],
+    //   "layers": [ { "image": "City_N_New2_Background", "depth": 0.3 },
+    //               { "image": "City_N_New2_Middleground", "depth": 0.85 },
+    //               { "image": "Fog_Foreground", "depth": 1.4 } ] },
+
+    // ---- Examples (remove the // to use)
+    //
+    // Same image in another area: add another entry with that area.
+    // { "image": "City_N_2", "area": "cathedral", "use": ["normal"] },
+    //
+    // One image for every area: leave "area" out.
+    // { "image": "Ruins_N_1", "use": ["normal"] },
+    //
+    // Only in one trial (trial ids are in Data/WorldDb.cs: city_outskirt, city_academy,
+    // cathedral_nave, cathedral_tower). Other trials of the area keep using the area's backgrounds.
+    // { "image": "Academy_N_1", "trial": "city_academy", "use": ["normal"] },
+    //
+    // Several trials at once: a list.
+    // { "image": "Academy_N_2", "trial": ["city_outskirt", "city_academy"], "use": ["normal"] },
+    //
+    // Drowned Cathedral set:
+    // { "image": "Cathedral_N_1", "area": "cathedral", "use": ["normal"] },
+    // { "image": "Cathedral_E_1", "area": "cathedral", "use": ["elite"] },
+    // { "image": "Cathedral_B_1", "area": "cathedral", "use": ["boss"] },
+    //
+    // Only for one enemy (e.g. this elite always fights in front of its barricade):
+    // { "image": "City_E_Warden", "area": "city", "use": ["elite"], "enemies": ["hollow_warden"] },
+    //
+    // Rarer variant: weight 3 vs 1 means City_N_1 shows up three times as often.
+    // { "image": "City_N_1", "area": "city", "use": ["normal"], "weight": 3 },
+    //
+    // Floor too high or low for the characters' feet (y = 430): move it with offsetY.
+    // { "image": "City_N_3", "area": "city", "use": ["normal"], "offsetY": 25 }
+  ]
+}

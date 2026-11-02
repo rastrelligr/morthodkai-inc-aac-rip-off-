@@ -17,6 +17,9 @@ namespace SERAAC.UI
             ['R'] = new Color(120, 26, 36), ['y'] = new Color(236, 196, 84), ['Y'] = new Color(160, 120, 40),
             ['c'] = new Color(96, 206, 226), ['C'] = new Color(40, 120, 150), ['p'] = new Color(150, 92, 192),
             ['e'] = new Color(122, 204, 92), ['E'] = new Color(60, 122, 52), ['o'] = new Color(242, 142, 60),
+            // UI palette (Art/Palette.png) for the battle UI icons below.
+            ['q'] = Palette.Coral, ['m'] = Palette.Rose, ['h'] = Palette.Blush, ['v'] = Palette.Violet,
+            ['u'] = Palette.Lilac300, ['i'] = Palette.Lilac100, ['W'] = Palette.Paper,
         };
 
         private static readonly Dictionary<string, string[]> Maps = new()
@@ -45,6 +48,42 @@ namespace SERAAC.UI
                                      "..kbooobbbk.", "..kbbobbbbk.", "..kbbbbbbbk.", "...kBBBBBk..", "....kkkkk...", "............" },
             ["the_cube"] = new[] { "............", ".....kk.....", "...kkllkk...", ".kkllllllkk.", ".kgglllllGk.", ".kgggkkGGGk.",
                                    ".kggggGGGGk.", ".kggggGGGGk.", ".kggggGGGGk.", "..kkggGGkk..", "....kkkk....", "............" },
+            // ---- Battle UI (skill types, Special Abilities, stats). Override with Art/icon_ui_<name>.png.
+            ["ui_attack"] = new[] { "..........kk", ".........kWk", "........kWWk", ".......kWWk.", "......kWWk..", "..k..kWWk...",
+                                    "..kk.kWk....", "...kkqk.....", "..kqkkk.....", ".kqk..kk....", "kqk.........", "kk.........." },
+            ["ui_heal"] = new[] { "............", "....kkkk....", "....kuuk....", "....kuuk....", ".kkkkuukkkk.", ".kuuuuuuuuk.",
+                                  ".kuuuuuuuuk.", ".kkkkuukkkk.", "....kuuk....", "....kuuk....", "....kkkk....", "............" },
+            ["ui_guard"] = new[] { "............", "..kkkkkkkk..", "..kvvvvvvk..", "..kvWvvvvk..", "..kvWvvvvk..", "..kvvvvvvk..",
+                                   "..kvvvvvvk..", "...kvvvvk...", "...kvvvvk...", "....kvvk....", ".....kk.....", "............" },
+            ["ui_item"] = new[] { "....kkkk....", "....kWWk....", ".....kk.....", "....kWWk....", "...kWhhWk...", "..khhhhhhk..",
+                                  ".khhWhhhhhk.", ".khhhhhhhhk.", ".kmhhhhhhmk.", "..kmmmmmmk..", "...kkkkkk...", "............" },
+            ["ui_charge"] = new[] { ".......kkk..", "......khhk..", ".....khhk...", "....khhk....", "...khhkkkk..", "..khhhhhhk..",
+                                    "..kkkkhhk...", ".....khhk...", "....khhk....", "...khhk.....", "...khk......", "...kk......." },
+            ["ui_position"] = new[] { "............", "...k........", "..kWk.......", ".kWWWkkkkkk.", "kWWWWWWWWWk.", ".kWWWkkkkkk.",
+                                      "..kWk...k...", "...k...kuk..", ".kkkkkkuuuk.", ".kuuuuuuuuuk", ".kkkkkkuuuk.", "........k..." },
+            ["ui_speed"] = new[] { "............", ".kk...kk....", ".kWk..kWk...", "..kWk..kWk..", "...kWk..kWk.", "....kWk..kWk",
+                                   "....kWk..kWk", "...kWk..kWk.", "..kWk..kWk..", ".kWk..kWk...", ".kk...kk....", "............" },
+            ["ui_damage"] = new[] { ".....kk.....", "....kqqk....", "....kqqk....", "...kqWqqk...", ".kkqWWqqqkk.", "kqqqWqqqqqqk",
+                                    "kqqqqqqqqqqk", ".kkqqqqqqkk.", "...kqqqqk...", "....kqqk....", "....kqqk....", ".....kk....." },
+            ["ui_hp"] = new[] { "............", ".kkk...kkk..", "kqqqk.kqqqk.", "kqWqqkqqqqk.", "kqWqqqqqqqk.", "kqqqqqqqqqk.",
+                                ".kqqqqqqqk..", "..kqqqqqk...", "...kqqqk....", "....kqk.....", ".....k......", "............" },
+            ["ui_sp"] = new[] { ".....kk.....", ".....kvk....", "....kvvk....", "kkkkkvvkkkk.", "kvvvvvvvvvk.", ".kvvvvvvvk..",
+                                "..kvvvvvk...", "..kvvkvvk...", ".kvvk.kvvk..", ".kvk...kvk..", ".kk.....kk..", "............" },
+            ["ui_objective"] = new[] { ".....kk.....", "....kqqk....", "...kqWWqk...", "..kqqWWqqk..", ".kqqqWWqqqk.", "kqqqqWWqqqqk",
+                                       "kqqqqWWqqqqk", ".kqqqqqqqqk.", "..kqqWWqqk..", "...kqWWqk...", "....kqqk....", ".....kk....." },
+
+            // ---- Status icons (Figures.StatusIcon).
+            ["st_blight"] = new[] { ".....kk.....", "....keek....", "....keek....", "...keeeek...", "...keeeek...", "..keeleeek..",
+                                    "..keleeeek..", "..keeeeeek..", "..kEeeeeEk..", "...kEEEEk...", "....kkkk....", "............" },
+            ["st_mark"] = new[] { ".....kk.....", "....kook....", "...kokkok...", "..kok..kok..", ".kok.kk.kok.", "kok.kook.kok",
+                                  "kok.kook.kok", ".kok.kk.kok.", "..kok..kok..", "...kokkok...", "....kook....", ".....kk....." },
+            ["st_slow"] = new[] { ".kkkkkkkkkk.", ".kwwwwwwwwk.", "..kcccccck..", "...kcccck...", "....kcck....", ".....kk.....",
+                                  ".....kk.....", "....kcck....", "...kcccck...", "..kcccccck..", ".kwwwwwwwwk.", ".kkkkkkkkkk." },
+            ["st_wall"] = new[] { "............", "kkkkkkkkkkkk", "kvvvvkvvvvvk", "kvvvvkvvvvvk", "kkkkkkkkkkkk", "kvvkvvvvvkvk",
+                                  "kvvkvvvvvkvk", "kkkkkkkkkkkk", "kvvvvkvvvvvk", "kvvvvkvvvvvk", "kkkkkkkkkkkk", "............" },
+            ["st_charging"] = new[] { ".....kk.....", "....kyyk....", "....kyyk....", "....kyyk....", "....kyyk....", "....kyyk....",
+                                      ".....kk.....", "............", ".....kk.....", "....kyyk....", ".....kk.....", "............" },
+
             ["shards"] = new[] { "......k.....", ".....kok....", ".....kook...", "....kyook...", "....kyyok...", "...kyyyook..",
                                  "...kyylyok..", "...kyyyook..", "....kyyok...", "....kyok....", ".....kk.....", "............" },
         };
@@ -52,6 +91,13 @@ namespace SERAAC.UI
         private static readonly Dictionary<string, Texture2D> _textures = new();
 
         public static IEnumerable<string> AllIds => Maps.Keys;
+
+        // Adds or replaces a pixel icon (mods' "icons" section, Data/ModContent.cs).
+        public static void Register(string id, string[] rows)
+        {
+            Maps[id] = rows;
+            _textures.Remove(id);
+        }
 
         // Rows that aren't 12 characters long (self-test uses this to catch typos).
         public static IEnumerable<string> MalformedIds()

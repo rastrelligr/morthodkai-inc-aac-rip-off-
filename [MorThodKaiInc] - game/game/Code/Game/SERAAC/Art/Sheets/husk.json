@@ -1,0 +1,8 @@
+{
+  // Husk (Brute), battle form: the failed metamorphosis, spread out like a butterfly.
+  // Its exploration form (curled up) is husk_curled.json, from the same image.
+  "id": "enemy_husk",
+  "image": "HuskSprites.png",
+  "reference": "spread",
+  "frames": [ { "name": "spread", "box": [105, 0, 340, 415], "foot": [280, 350] } ]
+}

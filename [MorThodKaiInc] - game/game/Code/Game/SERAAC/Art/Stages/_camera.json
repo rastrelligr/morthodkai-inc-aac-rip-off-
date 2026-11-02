@@ -1,0 +1,52 @@
+{
+  // Combat camera tuning. Saved changes apply while the game runs (no rebuild).
+  // Field meanings are documented in Stage/CombatCamera.cs (CameraTuning).
+
+  // Idle sway (pixels, cycles per second, degrees of tilt for the characters)
+  "swayAmount": 5,
+  "swaySpeed": 0.35,
+  "swayRoll": 0.25,
+
+  // Zoom (1 = no zoom)
+  "introZoom": 1.35,
+  "introTime": 1.1,
+  "targetingZoom": 1.04,
+  "actionZoom": 1.16,
+  "meleeZoom": 1.24,
+  "victoryZoom": 1.12,
+  "defeatZoom": 0.94,
+
+  // Pan toward the action (0 = stay centred, 1 = centre on it)
+  "actionPan": 0.55,
+
+  // Parallax: how much of the camera movement each background layer follows.
+  // 0 = never moves, 1 = moves with the characters, over 1 = in front of them.
+  "backdropFollow": 0.6,        // a background that is one single picture
+  "backdropDepth": 0.1,         // <name>_Backdrop.png     (farthest: the sky)
+  "backgroundDepth": 0.35,      // <name>_Background.png   (far: buildings)
+  "middlegroundDepth": 0.8,     // <name>_Middleground.png (the ground the characters stand on)
+  "foregroundDepth": 1.3,       // <name>_Foreground.png   (drawn over the characters)
+
+  "zoomSpeed": 3.5,
+  "panSpeed": 3.5,
+
+  // Impacts
+  "shakeHit": 5,
+  "shakeCrit": 12,
+  "shakeDeath": 8,
+  "shakeDecay": 5,
+  "critZoomKick": 0.07,
+  "hitStop": 0.035,
+  "critHitStop": 0.1,
+  "hitZoomKick": 0.025,
+
+  // Action-cam: slow motion (game speed, seconds), crit flash, skill cut-ins, letterbox bars
+  "slowMoScale": 0.3,
+  "critSlowMo": 0.22,
+  "killSlowMo": 0.4,
+  "bigMoveSlowMo": 0.55,
+  "critFlash": 0.35,
+  "cutInTime": 0.7,
+  "cutInMinSp": 3,
+  "letterboxHeight": 46
+}
