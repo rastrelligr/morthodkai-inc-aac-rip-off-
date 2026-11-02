@@ -260,7 +260,7 @@ def render_all():
         "maps": pair("map_dorm.jpg", "map_roof.jpg"),
         "shots_story": pair("shot_vn.jpg", "shot_dorm.jpg") + '<div style="height:3mm"></div>' + pair("shot_spar.jpg", "shot_airlift.jpg"),
         "shots_game": pair("shot_hub.jpg", "shot_loading.jpg") + '<div style="height:3mm"></div>' + pair("shot_explore.jpg", "shot_wyvern.jpg"),
-        "discord_channels": placeholder("แทรกภาพหน้าจอเซิร์ฟเวอร์ Discord ของทีม: รายชื่อช่อง (เช่น ช่องประกาศ ช่องงานภาพ ช่องโค้ด ช่องแชร์ไฟล์)"),
-        "discord_files": placeholder("แทรกภาพหน้าจอการส่งไฟล์ใน Discord: ไฟล์ภาพ/PSD/เสียงที่แชร์ และการคุยแก้งาน"),
-        "github_release": placeholder("แทรกภาพหน้าจอหน้า Releases บน GitHub ที่แสดง Release v0.1.3", 55),
+        "discord_channels": img("discord_channels.png", "92%"),
+        "discord_files": img("discord_feedback.png", "85%") + '<div style="height:3mm"></div>' + img("discord_files.png", "62%"),
+        "github_release": img("github_tag.png", "55%"),
     }

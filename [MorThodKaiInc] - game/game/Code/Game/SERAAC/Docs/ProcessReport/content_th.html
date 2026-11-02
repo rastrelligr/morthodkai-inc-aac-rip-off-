@@ -62,7 +62,7 @@
 {{TAB|บทบาทในทีมตามชื่อ branch}}
 <table>
 <tr><th>Branch</th><th>งาน</th><th>บทบาท</th></tr>
-<tr><td>Peach/Game1/programmer, Peach/Level-Progression-System/programmer</td><td>ระบบหลักของเกม ระบบเลเวล</td><td>Programmer</td></tr>
+<tr><td>Peach/Game1/programmer, Peach/Level-Progression-System/programmer</td><td>ระบบหลักของเกม ระบบเลเวล พื้นหลังฉากต่อสู้ และพอร์ตเทรตบางส่วน</td><td>Programmer, Artist</td></tr>
 <tr><td>jo/level-progression-system/designer</td><td>ออกแบบระบบเลเวลและเอกสาร GDD</td><td>Designer</td></tr>
 <tr><td>Fishe/game-visual/Artist, Tap/game_visual/Artist</td><td>ภาพในเกม สไปรต์ และแอนิเมชัน</td><td>Artist</td></tr>
 </table>
@@ -129,8 +129,8 @@
 
 <h2>3.2 การใช้ Discord</h2>
 <p>ทีมใช้เซิร์ฟเวอร์ Discord แยกช่องตามประเภทงาน เมื่อทำงานภาพหรือเสียงเสร็จ ผู้ทำจะส่งภาพตัวอย่างหรือไฟล์ลงในช่องที่เกี่ยวข้อง ให้สมาชิกคนอื่นให้ความเห็นได้ทันที เมื่องานผ่านแล้วจึงนำไฟล์ไปใส่ในโฟลเดอร์ `Art/` หรือ `Audio/` ของโปรเจกต์</p>
-{{FIG:discord_channels|ช่องต่าง ๆ ในเซิร์ฟเวอร์ Discord ของทีม}}
-{{FIG:discord_files|ตัวอย่างการแชร์ไฟล์และให้ความเห็นงานใน Discord}}
+{{FIG:discord_channels|ช่องต่าง ๆ ในเซิร์ฟเวอร์ Discord ของทีม และสรุปงานในช่อง updatelog}}
+{{FIG:discord_files|ตัวอย่างการอัปเดตงานและการแชร์ไฟล์สไปรต์ใน Discord}}
 
 <h2>3.3 โครงสร้างไฟล์ในโปรเจกต์</h2>
 <p>ไฟล์ทั้งหมดของเกมจัดเป็นโฟลเดอร์ตามประเภท ภาพและเสียงอยู่ในโฟลเดอร์ `Art/` และ `Audio/` ซึ่งเกมโหลดตอนรัน ผู้ออกแบบจึงเปลี่ยนภาพหรือเสียงได้โดยแค่วางไฟล์ใหม่ทับไฟล์เดิม ไม่ต้องแก้โค้ด ไฟล์ตั้งค่าที่ใช้บ่อย เช่น พื้นหลังฉากต่อสู้และเอฟเฟกต์หมอก เป็นไฟล์ JSON ที่แก้แล้วเห็นผลขณะเกมยังเปิดอยู่</p>
@@ -170,7 +170,7 @@
 <li>เพลงและเสียงประกอบ หมอก ฝุ่น และเมฆ หน้าจอโหลด และหน้า Options สำหรับปรับเสียง</li>
 </ul>
 <p>วิธี build รัน และเล่นเกม อธิบายไว้ในไฟล์ `README.md` ที่รากของ repository</p>
-{{FIG:github_release|หน้า Release v0.1.3 บน GitHub}}
+{{FIG:github_release|Tag v0.1.3 บน GitHub}}
 
 <!-- ============================================================== บทที่ 5 -->
 <h1 class="chap" data-n="5" data-toc="บทที่ 5 สรุป">บทที่ 5<small>สรุป</small></h1>

@@ -33,6 +33,7 @@ namespace SERAAC
         private string _pendingShot;
         private bool _startWindowed;
         private string _startStory;
+        private string _exportUi;
 
         public Game1(string[] args)
         {
@@ -52,6 +53,12 @@ namespace SERAAC
             if (Array.IndexOf(args, "--intro") >= 0) SERAAC.Screens.MainMenuScreen.ForceIntro = true;   // scripts skip the intro unless asked
             int story = Array.IndexOf(args, "--story");   // jump to a prologue chapter: dorm, spar, airlift, hub, academy
             if (story >= 0 && story + 1 < args.Length) _startStory = args[story + 1];
+            int ui = Array.IndexOf(args, "--export-ui");   // save the UI elements as PNGs and quit
+            if (ui >= 0)
+            {
+                _exportUi = ui + 1 < args.Length && !args[ui + 1].StartsWith("--") ? args[ui + 1] : Path.Combine(AppContext.BaseDirectory, "UiExport");
+                _startWindowed = true;
+            }
             int i = Array.IndexOf(args, "--script");
             if (i >= 0 && i + 1 < args.Length)
             {
@@ -124,6 +131,14 @@ namespace SERAAC
         // real resolution (see Draw.Scale), so nothing is stretched or blurred.
         protected override void Draw(GameTime gameTime)
         {
+            if (_exportUi != null)
+            {
+                int n = UI.UiExport.Run(GraphicsDevice, _sb, _exportUi);
+                Console.WriteLine($"Exported {n} UI elements to {_exportUi}");
+                _exportUi = null;
+                Exit();
+                return;
+            }
             var screen = GraphicsDevice.Viewport.Bounds;
             float scale = Math.Min(screen.Width / (float)Width, screen.Height / (float)Height);
             int offsetX = (screen.Width - (int)Math.Round(Width * scale)) / 2;

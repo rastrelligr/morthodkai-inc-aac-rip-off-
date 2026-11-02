@@ -60,7 +60,7 @@ namespace SERAAC.Core
 
         // ------------------------------------------------------------------ mouse
 
-        public static Vector2 MousePos { get; private set; } = new(-1000, -1000);
+        public static Vector2 MousePos { get; internal set; } = new(-1000, -1000);
         public static Vector2 PrevMouse { get; private set; }
         public static bool MouseMoved => (MousePos - PrevMouse).LengthSquared() > 0.25f;
         public static Vector2 MouseDelta => MousePos - PrevMouse;
