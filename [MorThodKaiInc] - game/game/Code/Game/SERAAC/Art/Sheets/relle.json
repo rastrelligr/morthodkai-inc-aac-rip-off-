@@ -3,6 +3,7 @@
   // the game trims them. "footX" = x of the feet (they stand on the bottom of the pose);
   // "foot": [x, y] sets both, for poses where something reaches below the feet (Slam).
   "id": "char_relle",
+  "facesLeft": true,
   "image": "relle_sheet.png",
   "reference": "combat_idle",
   "scale": 0.86,   // her attack poses match the idle sheet: 89 px tall against Naomi's 104 (relle_idle.json)

@@ -1,10 +1,8 @@
 {
-  // Drawn facing left; the game mirrors it to face the enemies.
   // Pillow. Still pose for now.
   "id": "char_knight",
   "image": "Pillow.png",
   "reference": "idle",
-  "facesLeft": true,
   "scale": 1.0,
   "frames": [ { "name": "idle" } ]
 }
