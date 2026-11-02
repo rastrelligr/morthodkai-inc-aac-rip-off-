@@ -232,7 +232,7 @@ namespace SERAAC.Screens
 
         private void UpdateParty()
         {
-            var all = CharacterDb.All;
+            var all = Roster;
             if (Input.Up) _charIndex = (_charIndex + all.Count - 1) % all.Count;
             if (Input.DownKey) _charIndex = (_charIndex + 1) % all.Count;
             var id = all[_charIndex].Id;
@@ -276,7 +276,7 @@ namespace SERAAC.Screens
 
         private void UpdateUpgrades()
         {
-            var all = CharacterDb.All;
+            var all = Roster;
             if (Input.Up) _charIndex = (_charIndex + all.Count - 1) % all.Count;
             if (Input.DownKey) _charIndex = (_charIndex + 1) % all.Count;
             if (Input.Left) _statIndex = (_statIndex + 2) % 3;
@@ -312,7 +312,7 @@ namespace SERAAC.Screens
 
         private void UpdateEquipment()
         {
-            var all = CharacterDb.All;
+            var all = Roster;
             if (_picking)
             {
                 var opts = PickerOptions();
@@ -344,6 +344,10 @@ namespace SERAAC.Screens
         }
 
         private static bool Locked(CharacterDef c) => !Profile.IsUnlocked(c.Id);
+
+        // Everyone the Sanctum lists: unlocked characters, plus locked ones that have a hint. A hidden character
+        // (no hint, like Pillow) stays off the list until found.
+        private static List<CharacterDef> Roster => CharacterDb.All.Where(c => Profile.IsUnlocked(c.Id) || c.UnlockHint != null).ToList();
 
         // ------------------------------------------------------------------ draw
 
@@ -519,10 +523,10 @@ namespace SERAAC.Screens
         {
             var left = new Rectangle(40, 134, 440, 490);
             Core.Draw.Panel(sb, left);
-            int rowH = (left.Height - 16) / CharacterDb.All.Count;
-            for (int i = 0; i < CharacterDb.All.Count; i++)
+            int rowH = (left.Height - 16) / Roster.Count;
+            for (int i = 0; i < Roster.Count; i++)
             {
-                var c = CharacterDb.All[i];
+                var c = Roster[i];
                 var r = new Rectangle(left.X + 10, left.Y + 8 + i * rowH, left.Width - 20, rowH - 4);
                 bool sel = i == _charIndex;
                 bool locked = Locked(c);
@@ -573,7 +577,7 @@ namespace SERAAC.Screens
                 if (slot < order.Count)
                 {
                     var c = CharacterDb.Get(order[slot]);
-                    bool sel = CharacterDb.All[_charIndex].Id == c.Id;
+                    bool sel = Roster[_charIndex].Id == c.Id;
                     Ui.HoverRow(sb, "cell", slot, cell, sel);
                     if (sel) Core.Draw.Rect(sb, new Rectangle(cell.X, cell.Bottom - 3, cell.Width, 3), Palette.Rose);
                     Figures.Unit(sb, c.ArtId, c.Role.Substring(0, 1), new Rectangle(cell.Center.X - 34, cell.Y + 14, 68, 112), c.Color, false, t);
@@ -587,14 +591,14 @@ namespace SERAAC.Screens
                 }
             }
 
-            var chosen = CharacterDb.All[_charIndex];
+            var chosen = Roster[_charIndex];
             bool inParty = order.Contains(chosen.Id);
             if (!Locked(chosen))
                 Ui.Button(sb, "toggle", 0, new Rectangle(right.Right - 236, right.Y + 8, 220, 34),
                     inParty ? $"Remove {chosen.Name}" : $"Add {chosen.Name} to party", enabled: inParty || order.Count < CharacterDb.PartySize, font: Assets.Small);
 
             // The highlighted character: name, blurb, skills (one row each, hover for the full text), passives.
-            var ch = CharacterDb.All[_charIndex];
+            var ch = Roster[_charIndex];
             float y = right.Y + 216;
             float w = right.Width - 32;
             if (Locked(ch))
@@ -662,7 +666,7 @@ namespace SERAAC.Screens
         private void DrawUpgrades(SpriteBatch sb, double t)
         {
             DrawCharacterList(sb, t, _ => null);
-            var c = CharacterDb.All[_charIndex];
+            var c = Roster[_charIndex];
             var prog = Profile.Progress(c.Id);
             var right = new Rectangle(500, 134, 740, 490);
             if (Locked(c)) { DrawLockedInfo(sb, c, right); return; }
@@ -712,7 +716,7 @@ namespace SERAAC.Screens
                 int n = (p.Weapon != null ? 1 : 0) + (p.Charm != null ? 1 : 0);
                 return n > 0 ? $"{n} equipped" : null;
             });
-            var ch = CharacterDb.All[_charIndex];
+            var ch = Roster[_charIndex];
             var prog = Profile.Progress(ch.Id);
             var right = new Rectangle(500, 134, 740, 490);
             if (Locked(ch)) { DrawLockedInfo(sb, ch, right); return; }
@@ -792,7 +796,7 @@ namespace SERAAC.Screens
             Core.Draw.Panel(sb, right);
             Ui.SectionBar(sb, new Rectangle(right.X + 12, right.Y + 10, right.Width - 24, 24), "Allies");
             y = right.Y + 44;
-            foreach (var c in CharacterDb.All.Where(c => !c.StartsUnlocked))
+            foreach (var c in CharacterDb.All.Where(c => !c.StartsUnlocked && (Profile.IsUnlocked(c.Id) || c.UnlockHint != null)))
             {
                 bool have = Profile.IsUnlocked(c.Id);
                 var r = new Rectangle(right.X + 12, (int)y, right.Width - 24, 130);

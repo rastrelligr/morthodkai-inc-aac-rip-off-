@@ -25,7 +25,7 @@ New Game plays the prologue; Continue resumes the chapter saved in `Profile.Stor
 | spar | Time skip to the training floor; the sparring match teaches actions, Ethergy, Focus, Guard vs a wind-up, Cleaver, Feast (one allowed action per turn, coach line on screen) | `Combat/CombatTutorial.cs`, `StoryScripts.SparTutorial` |
 | airlift | The Airlift platform above the clouds (sky, clouds, fog, wind); talking to Naomi starts the briefing | `Art/Maps/RooftopAirlift.tmx` |
 | hub | Naomi walks through Party, Upgrades (200 shards given once), Equipment and Trials; only the Fallen Academy can be deployed to | `HubScreen` (`Tutorial`) |
-| academy | The Fallen Academy as a full trial. Killing the Wyvern plays the ending and the end-of-playtest screen | `ExplorationScreen.OnResume`, `Screens/EndScreen.cs` |
+| academy | The Fallen Academy as a full trial. Killing the Wyvern plays a short scene; extracting afterwards plays the flight home and the end-of-playtest screen | `StoryFlow.OnMainObjective` / `OnExtracted`, `Screens/EndScreen.cs` |
 
 - All prologue lines: `Story/StoryScripts.cs`. Portraits and name colours: `VnCast` in `UI/VnDialogue.cs`.
 - Dialogue (story and NPCs) is a visual novel box: click / Enter / wheel down advances, **L** or wheel up opens the log, **F** auto, **Tab** (or hold Ctrl) skip, **H** or right click hides the box.
@@ -120,21 +120,33 @@ Run `--selftest` after changing numbers. It auto-plays 400 runs per trial for a 
 
 ## Characters, NPCs and quests
 
-- **Roster** (from "New Playable Character Design"; `Data/CharacterDb.cs`). Default party, front to back: Relle, Mara, Winter, Elian.
+- **Roster** (from "New Playable Character Design"; `Data/CharacterDb.cs`). Five characters: Relle, Mara, Elian, Naomi and Pillow. Default party, front to back: Relle, Mara, Naomi, Elian.
   - **Relle (Striker)**: Pierce (0 SP, front row, 5 dmg), Gnash (1 SP, front row, 3.5 dmg + Blight 2 x 2 turns, +30% lifesteal), Blood Feast (2 SP + 3 HP, 2 x 2 dmg to every enemy, then scrambles them), Cleaver (3 SP, Front 1 only, 7 dmg). Feast heals 10% of each hit.
     Passives: Flesh-Eating Blade (every 4th skill auto-crits, hits heal 20% of damage) and Frontline (x1.25 damage in Front 1/2).
-  - **Classes:** only 3 for now. **Striker** (Relle, Pillow, Winter), **Warden** (Mara), **Adept** (Elian, Elle).
-  - **Mara (Warden)** replaces Bram (keeps the `warden` id, and Bram's sheet until hers arrives): Shield Bash (0 SP, 4 dmg, push back 1, interrupts), Iron Rebuke (1 SP, spends all Guard: 0.6 + 1.0 Power per Guard, interrupts), Guard (2 SP, acts first, attacks on one ally hit Mara instead), Aegis Wall (3 SP, acts first, Mara + adjacent allies take 40% less, she can't move).
+  - **Classes:** only 3 for now. **Striker** (Relle, Naomi, Pillow), **Warden** (Mara), **Adept** (Elian).
+  - **Mara (Warden)** replaces Bram (keeps the `warden` id so saves carry over): Shield Bash (0 SP, 4 dmg, push back 1, interrupts), Iron Rebuke (1 SP, spends all Guard: 0.6 + 1.0 Power per Guard, interrupts), Guard (2 SP, acts first, attacks on one ally hit Mara instead), Aegis Wall (3 SP, acts first, Mara + adjacent allies take 40% less, she can't move).
     Ironbound Aegis: Shield Bash / Guard / Aegis Wall each give 1 **Guard**; at 2, the next attack on an ally next to her is redirected to her at half damage. She strikes back whenever she intercepts. Bulwark: 20% less damage in Front 1/2.
-  - **Elian (Adept)** replaces Sister Noa (keeps the `priest` id, and Noa's sheet until his arrives): Mend (0 SP, heal; Woven heals everyone for 60%), Snare Line (1 SP, acts first, pull an enemy 2 forward), Bind (2 SP, 2 dmg, -3 Speed for 2 turns), Reweave (2 SP, acts first, pull an ally 1 toward him; swap if taken).
+  - **Elian (Adept)** replaces Sister Noa (keeps the `priest` id): Mend (0 SP, heal; Woven heals everyone for 60%), Snare Line (1 SP, acts first, pull an enemy 2 forward), Bind (2 SP, 2 dmg, -3 Speed for 2 turns), Reweave (2 SP, acts first, pull an ally 1 toward him; swap if taken).
     Passives: Sympathetic Thread (healing x1.5 on allies under 50% HP), Backline (healing x1.2 in Back 1/2), and **Threadweaver**: every skill gives 1 Thread; at 3, the next Mend / Bind / Snare Line is **Woven** and reaches every ally / enemy.
-  - **Naomi (Striker)**, swift crowd control (Speed 8, Damage 4): Flicker Cut (0 SP, Slow), Sweeping Kick (1 SP, front row, push back 1), Pommel Strike (2 SP, acts first, interrupts, Slow), Thousand Cuts (3 SP, every enemy, Mark). Passives: Read the Opening (x1.3 vs Slowed / Marked / Blighted) and Frontline. Idle-only sheet for now.
-  - **Pillow (Striker)**, redesigned: Sleepwalker's Guard (Guarded after every skill; while Guarded he ripostes single-target attackers) + Frontline. Rend / Black Flame / Moonfall (now Marks the front row).
-  - **Winter (Striker)** and **Elle (Adept)** are rebalanced to the new scale. Mireille (Occultist) is removed (commented out in `CharacterDb`).
+  - **Naomi (Striker)**, swift crowd control (HP 30, Damage 5, Speed 8). Fast enough to dart in from Back 1: every skill but Sweeping Kick works from Front 1, Front 2 or Back 1 (Frontline only pays at the front): Flicker Cut (0 SP, Slow), Sweeping Kick (1 SP, front row, push back 1), Pommel Strike (2 SP, acts first, interrupts, Slow), Thousand Cuts (3 SP, every enemy, Mark). Passives: Read the Opening (x1.3 vs Slowed / Marked / Blighted) and Frontline. Idle-only sheet for now.
+  - **Pillow (Striker)**, the developer cameo: Power Nap (Guarded after every skill; while Guarded he swats back at single-target attackers) and Twelve Out of Ten (x1.25 damage in Front 1/2). Pixel Sword (0 SP, front), Fetch, Project! (1 SP, his dog drags an enemy from behind the front 1 forward and Marks it), I Hate Math (2 SP, every enemy, scrambles their positions), MorThodKai Is Open (3 SP, acts first, big hit at the front, heals 35% of the damage).
+  - Winter, Elle and Mireille are removed from the game.
+  - Every character has a dialogue portrait (`Art/Dialogue/Portrait`), a battle sheet (`Art/Sheets`) and an overworld sprite (`Art/Overworld`, `CharacterDef.OverworldArt`). Pillow is a developer cameo and a hidden character: he joins only if Relle finds him on the Airlift and talks to him before the squad leaves. Until then the Sanctum does not list him (a locked character with no `UnlockHint` stays hidden).
   - Gnash, Iron Rebuke, Mara's counter, Threadweaver / Woven, Snare Line and Pillow's riposte are our additions (not in the design doc), to make the kits as deep as Relle's Feast.
-- **Elle** is the only unlockable character. The Reflection appears in trials until Elle is unlocked: take its quest, beat an Elite with Relle in the party, then talk to it again.
-- The Angel, Maren and Topsala Tap (and Maren's / Topsala's quests) are commented out until they get sprites. The Reflection (Elle's sheet) is the only NPC.
-- Each trial can have one NPC room (`@` on the map). The Hub's **JOURNAL** tab lists quests and how to unlock Elle.
+- No NPC is in rotation right now (the Reflection left with Elle; the Angel, Maren and Topsala Tap are commented out until they get sprites). Each trial can have one NPC room (`@` on the map) when `NpcDb.All` has someone. The Hub's **JOURNAL** tab lists quests.
+
+## Squad conversations and reactions
+
+Talking to squadmates works like crew talks between missions (`Story/Squad.cs`, `Story/SquadTalk.cs`):
+
+- **One talk per squadmate per story stop.** For now the only stop is the Airlift: Mara, Elian and Naomi each get one conversation; after that they have a short line. Later stops come after each main mission.
+- **Topic menu.** A greeting, then topics, each asked once; leaving ends the talk.
+- **Romance** is not a menu item. A flirt is one answer among others inside a topic (Mara: "Ready for the Wyvern?", Elian: the notebook, Naomi: this morning), so it is easy to miss. It records a romance interest (`Profile.RomanceInterest`).
+- **Reactions.** Choices carry a hidden tone (kind, bold, ask, flirt). Each squadmate answers in character, and the choice moves their rapport (`Profile.Rapport`); the player reads how it landed from the reply. In the briefing, one choice moves several squadmates at once.
+- **Dialogue Helper** (Options, off by default) shows the tones as tags (KIND, BOLD, ASK, heart, END) and pops up the reactions ("Mara approves", "Naomi will remember that", "Elian liked that").
+- **Interrupts.** Some lines open a timed prompt over the box (press **E** or click it). Take it and the scene changes; let the bar run out and the moment passes.
+- **Payoff.** The squadmate with the highest rapport sits next to Relle on the flight home (a warmer line with a romance interest).
+- **Pillow** is not part of this. Knock on the Osprey three times on the Airlift and he rolls out of the cargo bay; every talk is a new bit about nothing to do with the game (hot dogs, noodles, rating dogs, hating math, the MorThodKai fried chicken shop that is never open...). Talking to him unlocks him.
 - **Enemies** ("New Enemies Type"; `Data/EnemyDb.cs`, own sheets in `Art/Sheets/`): Gnawer (Normal, Bite 2), Husk (Brute, Heavy Crash 3; curled while roaming, spread like a butterfly in battle), Wraith (Stalker, Spectral Lunge 2, hunts the back line), and the **Wyvern** (new **Apex** boss type, HP 60: Tail Sweep, Venom Fang with Blight, Binding Coils with Slow, and **Rear Up**: a telegraphed wind-up into **Skyfall Crush** on the whole party next turn, answered by Guard, the Aegis Wall or an interrupt; enrages at half HP: cleanses, +2 Speed, winds up more often). Brutes and Apex are Steadfast (can't be knocked back). The Wyvern is the Fallen Academy's Main Objective. The Drowned Cathedral is commented out until it gets new enemies.
 - Target curve after playtest 1 (testers found everything too easy; simulated with `--balance-only`): City Outskirts ~100% (learning dive); the AI clears every room of the Fallen Academy ~10% of the time (people skip fights and use items); the Wyvern alone, at full HP, ~70% at depth 3 and ~50% at depth 6; a veteran party (upgrades + gear) clears both ~100%.
 - Full numbers, formulas and what is tunable: `Docs/SERAAC_Balance_Sheet.xlsx`.

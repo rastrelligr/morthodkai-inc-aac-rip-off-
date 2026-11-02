@@ -54,10 +54,9 @@ namespace SERAAC.Screens
 
         private static readonly (string name, string[] party, string help)[] Presets =
         {
-            ("Default", new[] { "relle", "warden", "hunter", "priest" }, "Relle, Mara, Winter, Elian: the party a new player starts with."),
-            ("Three Strikers", new[] { "relle", "knight", "hunter", "priest" }, "Relle, Pillow, Winter + Elian: no Warden."),
-            ("Pillow + Mara front", new[] { "knight", "warden", "hunter", "priest" }, "Two tanky front-liners."),
-            ("Two Adepts", new[] { "relle", "warden", "relle_inv", "priest" }, "Elle and Elian together."),
+            ("Default", new[] { "relle", "warden", "naomi", "priest" }, "Relle, Mara, Naomi, Elian: the party a new player starts with."),
+            ("Three Strikers", new[] { "relle", "knight", "naomi", "priest" }, "Relle, Pillow, Naomi + Elian: no Warden."),
+            ("Pillow + Mara front", new[] { "knight", "warden", "naomi", "priest" }, "Two tanky front-liners."),
             ("Custom", null, "Pick each position yourself below."),
         };
 

@@ -20,6 +20,7 @@ namespace SERAAC.UI
         public bool Card;                    // a centred title card on black ("Later, the training hall")
         public Action OnShow;                // side effects when the line appears
         public List<VnChoice> Choices;       // shown under the text once it is fully typed
+        public VnInterrupt Interrupt;        // a timed prompt while this line is up (see VnInterrupt)
 
         public string Resolve() => TextFn?.Invoke() ?? Text ?? "";
 
@@ -28,11 +29,95 @@ namespace SERAAC.UI
         public static VnLine TitleCard(string text) => new() { Text = text, Card = true };
     }
 
+    // How a choice comes across: Kind (warm), Bold (blunt), Ask (find out more), Flirt, Leave. Hidden unless the
+    // Dialogue Helper option is on (Core/Settings.cs): normally the player answers on the words alone and reads
+    // the reply. The tone still colours an interrupt prompt.
+    public enum VnTone { None, Kind, Bold, Ask, Flirt, Leave }
+
     public sealed class VnChoice
     {
         public string Label;
         public Action Pick;
+        public VnTone Tone;
+        public Func<IEnumerable<VnLine>> Then;   // lines played right after picking it (the branch)
         public VnChoice(string label, Action pick) { Label = label; Pick = pick; }
+        public VnChoice(VnTone tone, string label, Func<IEnumerable<VnLine>> then, Action pick = null)
+        {
+            Tone = tone; Label = label; Then = then; Pick = pick;
+        }
+
+        public static Color ToneColor(VnTone t) => t switch
+        {
+            VnTone.Kind => Palette.KwSlow,
+            VnTone.Bold => Palette.Coral,
+            VnTone.Ask => Palette.Lilac300,
+            VnTone.Flirt => Palette.Rose,
+            _ => Palette.Grey500,
+        };
+
+        // The tag shown in front of a choice, or null for none (always none with the Dialogue Helper off).
+        public static string ToneLabel(VnTone t) => !Settings.Current.DialogueHelper ? null : t switch
+        {
+            VnTone.Kind => "KIND",
+            VnTone.Bold => "BOLD",
+            VnTone.Ask => "ASK",
+            VnTone.Flirt => "",
+            VnTone.Leave => "END",
+            _ => null,
+        };
+    }
+
+    // A chance to act mid-line, open for a few seconds: a prompt over the box with a draining bar. Press E (or
+    // click it) to take it; let it run out, or move on, and the moment passes. Skipping never takes one.
+    public sealed class VnInterrupt
+    {
+        public string Label;
+        public VnTone Tone = VnTone.Kind;
+        public float Window = 3.5f;
+        public Action Pick;
+        public Func<IEnumerable<VnLine>> Then;
+        public int Replaces;   // how many of the following lines play only when it is missed (dropped when taken)
+    }
+
+    // Short notices of how the squad took what Relle just said ("Mara approves"), stacked top right
+    // with the character's face. Only shown with the Dialogue Helper on. Anything can post one; the VN draws them.
+    public static class VnReactions
+    {
+        private sealed class Entry { public string CharId, Text; public Color Color; public string Icon; public float Age; }
+        private static readonly List<Entry> _list = new();
+        private const float Life = 3.2f;
+
+        public static void Post(string charId, string text, Color color, string icon = null, string sound = "ui_select")
+        {
+            if (!Settings.Current.DialogueHelper) return;
+            _list.Add(new Entry { CharId = charId, Text = text, Color = color, Icon = icon });
+            if (_list.Count > 4) _list.RemoveAt(0);
+            if (sound != null) Audio.Play(sound, 0.5f);
+        }
+
+        public static void Update(float dt)
+        {
+            foreach (var e in _list) e.Age += dt;
+            _list.RemoveAll(e => e.Age > Life);
+        }
+
+        public static void Draw(SpriteBatch sb, float alpha = 1f)
+        {
+            for (int i = 0; i < _list.Count; i++)
+            {
+                var e = _list[i];
+                float a = MathHelper.Clamp(Math.Min(e.Age / 0.2f, (Life - e.Age) / 0.4f), 0, 1) * alpha;
+                float slide = (1 - MathHelper.Clamp(e.Age / 0.25f, 0, 1)) * 40;
+                var r = new Rectangle((int)(Game1.Width - 330 + slide), 24 + i * 58, 306, 50);
+                Core.Draw.Rect(sb, r, Palette.Ink * 0.78f * a);
+                Core.Draw.GradientH(sb, r, e.Color * 0.35f * a, 0.1f);
+                Core.Draw.Rect(sb, new Rectangle(r.X, r.Y, 3, r.Height), e.Color * a);
+                var def = Data.CharacterDb.Get(e.CharId);
+                if (def != null) Figures.Portrait(sb, def, new Rectangle(r.X + 8, r.Y + 5, 40, 40), 0, a);
+                if (e.Icon != null) Icons.Draw(sb, e.Icon, new Rectangle(r.Right - 30, r.Y + 13, 24, 24), a);
+                Core.Draw.Text(sb, Assets.Body, e.Text, new Vector2(r.X + 58, r.Center.Y - Assets.Body.MeasureString(e.Text).Y / 2), Palette.Paper * a, shadow: false);
+            }
+        }
     }
 
     // Who speaks in the story: portrait, name colour and which side they stand on.
@@ -43,12 +128,17 @@ namespace SERAAC.UI
             public string Portrait;
             public Color NameColor;
             public string Side;
+            public float Height = 1f;   // portraits are framed differently (full figure vs bust): scales the drawn height
+            public float ShiftX;        // nudges the portrait outward (+) from its usual spot
         }
 
         public static readonly Dictionary<string, Member> All = new(StringComparer.OrdinalIgnoreCase)
         {
             ["Relle"] = new() { Portrait = "Dialogue/Portrait/Portrait_Relle", NameColor = Palette.Blush, Side = "left" },
             ["Naomi"] = new() { Portrait = "Dialogue/Portrait/Portrait_Naomi", NameColor = Palette.Lilac100, Side = "right" },
+            ["Mara"] = new() { Portrait = "Dialogue/Portrait/Portrait_Mara", NameColor = Palette.Coral, Side = "right", Height = 0.8f, ShiftX = 50 },
+            ["Elian"] = new() { Portrait = "Dialogue/Portrait/Portrait_Elian", NameColor = Palette.KwHeal, Side = "right", Height = 0.92f, ShiftX = 20 },
+            ["Pillow"] = new() { Portrait = "Dialogue/Portrait/Portrait_Pillow", NameColor = Palette.KwPriority, Side = "right", Height = 0.78f, ShiftX = 30 },
         };
 
         public static Member Get(string name) => name != null && All.TryGetValue(name, out var m) ? m : null;
@@ -66,6 +156,7 @@ namespace SERAAC.UI
         private float _typed;
         private float _lineTime;
         private int _choice;
+        private bool _interruptTaken;
 
         private readonly List<(string speaker, string text)> _log = new();
         private bool _logOpen;
@@ -133,6 +224,7 @@ namespace SERAAC.UI
             _lineTime = 0;
             _choice = 0;
             _autoWait = 0;
+            _interruptTaken = false;
 
             if (_line.Background != null && Clean(_line.Background) != _bg)
             {
@@ -158,6 +250,7 @@ namespace SERAAC.UI
         }
 
         private bool TextDone => _typed >= _text.Length;
+        private bool InterruptOpen => _line?.Interrupt != null && !_interruptTaken && _lineTime < _line.Interrupt.Window;
         private List<VnChoice> Choices => _line?.Choices ?? (List<VnChoice>)null;
         private bool WaitingOnChoice => TextDone && Choices is { Count: > 0 };
 
@@ -166,6 +259,7 @@ namespace SERAAC.UI
         public void Update(float dt)
         {
             _time += dt;
+            VnReactions.Update(dt);
             _bgFade = Math.Min(1f, _bgFade + dt / 0.45f);
             foreach (var s in new[] { _left, _right })
             {
@@ -218,13 +312,31 @@ namespace SERAAC.UI
                     _log.Add(("", "> " + pick.Label));
                     _text = "";   // already logged
                     pick.Pick?.Invoke();
+                    var more = pick.Then?.Invoke();
+                    if (more != null) Insert(more);
                     Next();
                 }
                 return;
             }
 
+            if (InterruptOpen && (Input.Pressed(Keys.E) || Ui.Clicked("vnint")))
+            {
+                var it = _line.Interrupt;
+                _interruptTaken = true;
+                _log.Add((_line.Speaker, _text));
+                _log.Add(("", "> " + it.Label));
+                _text = "";
+                Audio.Play("ui_select");
+                it.Pick?.Invoke();
+                for (int i = 0; i < it.Replaces && _queue.Count > 0; i++) _queue.RemoveFirst();
+                var more = it.Then?.Invoke();
+                if (more != null) Insert(more);
+                Next();
+                return;
+            }
+
             bool advance = Input.Pressed(Keys.Enter) || Input.Pressed(Keys.Space) || Input.Pressed(Keys.Z)
-                           || (Input.Click && Ui.Hover("vnbtn") < 0) || Input.Wheel < 0;
+                           || (Input.Click && Ui.Hover("vnbtn") < 0 && Ui.Hover("vnint") < 0) || Input.Wheel < 0;
             if (!TextDone)
             {
                 if (advance) _typed = _text.Length;
@@ -274,8 +386,30 @@ namespace SERAAC.UI
             if (_line != null && _line.Card) { DrawCard(sb); return; }
             if (!Hidden) DrawPortraits(sb);
             if (_logOpen) { DrawLog(sb); return; }
-            if (Hidden || _line == null) return;
+            if (Hidden || _line == null) { VnReactions.Draw(sb, Alpha); return; }
             DrawBox(sb);
+            if (InterruptOpen) DrawInterrupt(sb);
+            VnReactions.Draw(sb, Alpha);
+        }
+
+        // The interrupt prompt: a tone-coloured plate over the box with the E key and a bar running out.
+        private void DrawInterrupt(SpriteBatch sb)
+        {
+            var it = _line.Interrupt;
+            float left = 1 - _lineTime / it.Window;
+            float pop = MathHelper.Clamp(_lineTime / 0.15f, 0, 1);
+            var c = VnChoice.ToneColor(it.Tone);
+            var size = Assets.Header.MeasureString(it.Label);
+            int w = (int)size.X + 96;
+            var r = new Rectangle(Game1.Width / 2 - w / 2, BoxTop - 92 - (int)((1 - pop) * 12), w, 46);
+            float pulse = 0.75f + 0.25f * MathF.Sin(_time * 10f);
+            Core.Draw.SoftGlow(sb, r.Center.ToVector2(), new Vector2(w * 1.3f, 120), c * 0.25f * pulse * Alpha);
+            Core.Draw.HighlightBar(sb, r, c, 10, Alpha * pop);
+            Ui.KeyCap(sb, "E", new Vector2(r.X + 26, r.Center.Y));
+            Core.Draw.Text(sb, Assets.Header, it.Label, new Vector2(r.X + 50, r.Center.Y - size.Y / 2), Palette.Paper * Alpha * pop);
+            Core.Draw.Rect(sb, new Rectangle(r.X, r.Bottom + 3, w, 3), Palette.Ink * 0.6f * Alpha);
+            Core.Draw.Rect(sb, new Rectangle(r.X, r.Bottom + 3, (int)(w * left), 3), c * Alpha);
+            Ui.Hit("vnint", r);
         }
 
         // Art/Dialogue/Background/<name>, Art/Dialogue/<name>, or a combat background from Art/Stages (all its layers).
@@ -339,11 +473,12 @@ namespace SERAAC.UI
             var art = s.Art == null ? null : Assets.Art(s.Art);
             if (art == null) return;
             var tex = art.Texture;
-            float h = 640f + 16f * s.Talk;
+            var cast = VnCast.Get(s.Speaker);
+            float h = (640f + 16f * s.Talk) * (cast?.Height ?? 1f);
             float scale = h / tex.Height;
             float w = tex.Width * scale;
             float ease = 1 - (1 - s.In) * (1 - s.In);
-            float cx = (left ? 250 : Game1.Width - 250) + (left ? -1 : 1) * (1 - ease) * 80;
+            float cx = (left ? 250 : Game1.Width - 250) + (left ? -1 : 1) * ((1 - ease) * 80 + (cast?.ShiftX ?? 0));
             var pos = new Vector2(cx - w / 2f, Game1.Height - h + 40);
             var tint = Color.Lerp(new Color(110, 105, 125), Color.White, s.Talk) * (ease * Alpha);
             sb.Draw(tex, pos, null, tint, 0f, Vector2.Zero, scale, left ? SpriteEffects.None : SpriteEffects.None, 0f);
@@ -376,13 +511,25 @@ namespace SERAAC.UI
             {
                 var ch = Choices;
                 float y = BoxTop + 34 + used + 8;
+                int rowH = ch.Count > 4 ? 25 : 30;   // long menus pack tighter to stay inside the box
+                bool tags = ch.Exists(c => VnChoice.ToneLabel(c.Tone) != null);   // keep labels lined up when some have a tag
                 for (int i = 0; i < ch.Count; i++)
                 {
-                    var row = new Rectangle(textX - 8, (int)y + i * 30, 560, 28);
+                    var row = new Rectangle(textX - 8, (int)y + i * rowH, 560, rowH - 2);
                     bool sel = i == _choice;
                     if (sel) Ui.SelectedRow(sb, row);
                     Ui.HoverRow(sb, "vnchoice", i, row, sel);
-                    Core.Draw.Text(sb, Assets.Body, ch[i].Label, new Vector2(row.X + 20, row.Y + 4), sel ? Palette.Paper : Palette.Text);
+                    float tx = row.X + 20;
+                    if (VnChoice.ToneLabel(ch[i].Tone) != null)
+                    {
+                        var tc = VnChoice.ToneColor(ch[i].Tone);
+                        var tag = new Rectangle((int)tx, row.Center.Y - 9, 44, 18);
+                        Core.Draw.Rect(sb, tag, tc * (sel ? 0.9f : 0.55f) * a);
+                        if (ch[i].Tone == VnTone.Flirt) Icons.Draw(sb, "ui_hp", new Rectangle(tag.Center.X - 8, tag.Y + 1, 16, 16), a);
+                        else Core.Draw.TextCentered(sb, Assets.Small, VnChoice.ToneLabel(ch[i].Tone), tag.Center.ToVector2(), Palette.Paper * a, shadow: false);
+                    }
+                    if (tags) tx += 54;
+                    Core.Draw.Text(sb, Assets.Body, ch[i].Label, new Vector2(tx, row.Center.Y - Assets.Body.MeasureString(ch[i].Label).Y / 2), (sel ? Palette.Paper : Palette.Text) * a);
                 }
             }
             else if (TextDone)
@@ -405,7 +552,8 @@ namespace SERAAC.UI
                 Core.Draw.TextCentered(sb, Assets.Small, labels[i], r.Center.ToVector2(), (on[i] || hover ? Palette.Paper : Palette.TextDim) * a, shadow: false);
                 Ui.Hit("vnbtn", i, r);
             }
-            Core.Draw.Text(sb, Assets.Small, "L log   F auto   Tab / Ctrl skip   H hide", new Vector2(40, Game1.Height - 30), Palette.TextDisabled * a, shadow: false);
+            if (!WaitingOnChoice)
+                Core.Draw.Text(sb, Assets.Small, "L log   F auto   Tab / Ctrl skip   H hide", new Vector2(40, Game1.Height - 30), Palette.TextDisabled * a, shadow: false);
         }
 
         // Title card: black screen, letter-spaced text that fades in.

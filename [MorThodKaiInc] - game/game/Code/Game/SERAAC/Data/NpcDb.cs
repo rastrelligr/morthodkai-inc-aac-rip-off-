@@ -191,49 +191,8 @@ namespace SERAAC.Data
         };
         */
 
-        public static readonly NpcDef Reflection = new()
-        {
-            Id = "npc_reflection", Name = "The Reflection", SpriteId = "char_relle_inv", Pose = "portrait", Color = new Color(70, 190, 210), Weight = 3,
-            CanAppear = c => !c.Profile.IsUnlocked("relle_inv"),
-            Entry = c => !Quests.IsActive(c.Profile, QuestDb.Reflection) ? "first"
-                       : Quests.IsDone(c.Profile, QuestDb.Reflection) ? "merge" : "waiting",
-            Nodes = new()
-            {
-                ["first"] = new()
-                {
-                    Text = "Hello, me. Don't make that face, Relle. You started feeding, and something had to be left behind in the dark. That was me.",
-                    Choices = { Go("What are you?", "who"), Go("What do you want?", "want") },
-                },
-                ["who"] = new()
-                {
-                    Text = "Everything you aren't. Cold where you're hungry. Patient where you're loud. Pulverizer remembers me, even if you don't.",
-                    Choices = { Go("What do you want?", "want") },
-                },
-                ["want"] = new()
-                {
-                    Text = "Show me you're worth following. Beat something strong, an Elite, and do it yourself. Then come find me.",
-                    Choices = { Go("Fine.", "accepted"), Go("No.", "end") },
-                },
-                ["accepted"] = new()
-                {
-                    OnEnter = c => { Quests.Start(c.Profile, QuestDb.Reflection); c.Notify("Quest started: " + QuestDb.Reflection.Name); },
-                    Text = "I'll be watching from the other side of the glass.",
-                },
-                ["waiting"] = new() { Text = "Not yet. An Elite. With your own blade. I'm watching." },
-                ["merge"] = new()
-                {
-                    OnEnter = c =>
-                    {
-                        Quests.Claim(c.Profile, QuestDb.Reflection);
-                        c.Profile.Unlock("relle_inv");
-                        c.Notify("Elle (Inverted Relle) joined the Sanctum!");
-                    },
-                    Text = "...Fine. Two of us, then. Call me Elle, so nobody gets confused. Mostly you.",
-                },
-            },
-        };
-
-        public static readonly List<NpcDef> All = new() { Reflection };
+        // No NPC is in rotation right now; add one to All to have it appear in Trials.
+        public static readonly List<NpcDef> All = new();
 
         // Picks who (if anyone) is waiting in this trial's NPC room.
         public static NpcDef PickFor(DialogueContext ctx, Random rng)

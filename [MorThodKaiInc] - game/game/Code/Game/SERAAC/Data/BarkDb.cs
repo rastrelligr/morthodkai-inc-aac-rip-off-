@@ -56,12 +56,6 @@ namespace SERAAC.Data
                 [BarkTrigger.AllyLow] = new[] { "Get behind me!", "Stay close to the shield!" },
                 [BarkTrigger.Hurt] = new[] { "The Aegis holds.", "Still standing." },
             },
-            ["hunter"] = new()
-            {
-                [BarkTrigger.FightStart] = new[] { "Target acquired.", "...it's humming." },
-                [BarkTrigger.Crit] = new[] { "Clean shot.", "Bullseye." },
-                [BarkTrigger.Kill] = new[] { "Down.", "Confirmed." },
-            },
             ["priest"] = new()   // Elian
             {
                 [BarkTrigger.FightStart] = new[] { "Threads ready.", "Nobody gets left behind." },
@@ -69,10 +63,13 @@ namespace SERAAC.Data
                 [BarkTrigger.AllyDown] = new[] { "No... the thread snapped." },
                 [BarkTrigger.Victory] = new[] { "Everyone in one piece? Good." },
             },
-            ["knight"] = new()
+            ["knight"] = new()   // Pillow
             {
-                [BarkTrigger.FightStart] = new[] { "*yawn* ...ready.", "Wake me when it's over. Kidding." },
-                [BarkTrigger.Hurt] = new[] { "Hmph. Barely felt it." },
+                [BarkTrigger.FightStart] = new[] { "*yawn* ...is this a meeting?", "Wake me when it's- oh. It's now.", "Is MorThodKai open yet?" },
+                [BarkTrigger.Crit] = new[] { "I didn't calculate that. I don't calculate.", "Twelve out of ten." },
+                [BarkTrigger.Kill] = new[] { "Good boy. Wait, wrong one.", "Back to the bag." },
+                [BarkTrigger.Hurt] = new[] { "Ow. My nap.", "That's coming out of my sleep schedule." },
+                [BarkTrigger.Victory] = new[] { "Fried chicken. Now. Please.", "Can I go back in the Osprey?" },
             },
             // Mireille is out of the game for now (see CharacterDb).
             // ["occultist"] = new()
@@ -80,11 +77,6 @@ namespace SERAAC.Data
             //     [BarkTrigger.FightStart] = new[] { "Fascinating specimens.", "Let's see what's inside." },
             //     [BarkTrigger.Kill] = new[] { "Noted.", "Hm. Brittle." },
             // },
-            ["relle_inv"] = new()
-            {
-                [BarkTrigger.FightStart] = new[] { "Cold, isn't it?", "Keep up, Relle." },
-                [BarkTrigger.Crit] = new[] { "Too slow." },
-            },
         };
 
         // A line for this character, falling back to the default lines. Null if there is none.

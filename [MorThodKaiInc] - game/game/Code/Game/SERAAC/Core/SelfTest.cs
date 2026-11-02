@@ -296,7 +296,7 @@ namespace SERAAC.Core
             var pillow = Combatant.FromMember(M(CharacterDb.Knight));
             var f3 = Foe();
             var b3 = new Battle(new[] { pillow }, new[] { f3 }, rng);
-            pillow.Plan = new PlannedAction { Action = Skill(CharacterDb.Knight, "rend"), Target = f3 };
+            pillow.Plan = new PlannedAction { Action = Skill(CharacterDb.Knight, "pixel_sword"), Target = f3 };
             b3.Execute(pillow);
             if (!pillow.Has(StatusKind.Guard)) Fail("Pillow should be Guarded after a skill");
             foeHp = f3.Hp;
@@ -408,14 +408,14 @@ namespace SERAAC.Core
                 if (b.Enemies[s] != null && b.Enemies[s].Slot != s) Fail("shuffle left a unit whose Slot doesn't match its position");
             if (b.Enemies.Count(e => e != null) != 2) Fail("shuffle lost or duplicated an enemy");
 
-            // Undercut knocks its target 2 slots back.
-            var elle = Combatant.FromMember(Member(CharacterDb.RelleInverted));
-            elle.Sp = 5;
-            var b2 = new Battle(new[] { elle }, Dummies(3), rng);
+            // Shield Bash knocks its target 1 slot back.
+            var mara2 = Combatant.FromMember(Member(CharacterDb.Warden));
+            mara2.Sp = 5;
+            var b2 = new Battle(new[] { mara2 }, Dummies(3), rng);
             var front = b2.Enemies[0];
-            elle.Plan = new PlannedAction { Action = CharacterDb.RelleInverted.Skills.First(s => s.Id == "undercut"), Target = front };
-            b2.Execute(elle);
-            if (front.Slot != 2) Fail($"Undercut should knock Front 1 to slot 3 (index 2), it is at {front.Slot}");
+            mara2.Plan = new PlannedAction { Action = CharacterDb.Warden.Skills.First(s => s.Id == "shield_bash"), Target = front };
+            b2.Execute(mara2);
+            if (front.Slot != 1) Fail($"Shield Bash should knock Front 1 to slot 2 (index 1), it is at {front.Slot}");
 
             // Blood Feast's blood price: 3 HP, never fatal.
             relle.Hp = 2; relle.Sp = 5;
@@ -531,7 +531,7 @@ namespace SERAAC.Core
                 int frontHits = 0, total = 0;
                 for (int i = 0; i < 400; i++)
                 {
-                    var party = new[] { CharacterDb.Relle, CharacterDb.Warden, CharacterDb.Hunter, CharacterDb.Priest }.Select(d => Combatant.FromMember(M(d)));
+                    var party = new[] { CharacterDb.Relle, CharacterDb.Warden, CharacterDb.Naomi, CharacterDb.Priest }.Select(d => Combatant.FromMember(M(d)));
                     var foe = Combatant.FromEnemy(enemy, 1f);
                     var b = new Battle(party, new[] { foe }, rng);
                     var plan = CombatAI.Choose(b, foe, rng);
@@ -670,7 +670,7 @@ namespace SERAAC.Core
 
 
 
-            foreach (var (label, profile) in new[] { ("fresh default party (Relle, Mara, Winter, Elian)", Profile.CreateNew()), ("veteran party (lv 3/3/2 + gear)", veteran) })
+            foreach (var (label, profile) in new[] { ("fresh default party (Relle, Mara, Naomi, Elian)", Profile.CreateNew()), ("veteran party (lv 3/3/2 + gear)", veteran) })
             {
                 Say($"\n== Balance: {label}, AI-controlled, 400 full-clear runs per trial ==");
                 foreach (var area in WorldDb.Areas)
@@ -718,13 +718,10 @@ namespace SERAAC.Core
             var quarantine = WorldDb.AbandonedCity.Trials[1];
             var swaps = new (string label, string[] order)[]
             {
-                ("default  Relle / Mara / Winter / Elian", new[] { "relle", "warden", "hunter", "priest" }),
-                ("Pillow  for Relle", new[] { "knight", "warden", "hunter", "priest" }),
-                ("Pillow  for Winter", new[] { "relle", "warden", "knight", "priest" }),
-                ("Elle    for Elian", new[] { "relle", "warden", "hunter", "relle_inv" }),
-                ("Pillow  for Mara", new[] { "relle", "knight", "hunter", "priest" }),
-                ("Naomi   for Relle", new[] { "naomi", "warden", "hunter", "priest" }),
-                ("Naomi   for Mara", new[] { "relle", "naomi", "hunter", "priest" }),
+                ("default  Relle / Mara / Naomi / Elian", new[] { "relle", "warden", "naomi", "priest" }),
+                ("Pillow  for Relle", new[] { "knight", "warden", "naomi", "priest" }),
+                ("Pillow  for Naomi", new[] { "relle", "warden", "knight", "priest" }),
+                ("Pillow  for Mara", new[] { "relle", "knight", "naomi", "priest" }),
             };
             foreach (var (label, order) in swaps)
             {

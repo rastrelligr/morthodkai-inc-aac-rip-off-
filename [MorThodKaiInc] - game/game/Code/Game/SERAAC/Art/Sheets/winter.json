@@ -1,9 +1,0 @@
-{
-  // Placeholder sprite for Winter (single pose). She lies prone, so she is drawn short enough
-  // that the whole sprite (rifle included) fits one party slot.
-  "id": "char_hunter",
-  "image": "Winter.png",
-  "reference": "idle",
-  "scale": 0.6,
-  "frames": [ { "name": "idle" } ]
-}

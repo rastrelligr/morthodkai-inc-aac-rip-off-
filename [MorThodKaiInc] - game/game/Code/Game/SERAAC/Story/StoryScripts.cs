@@ -225,10 +225,11 @@ namespace SERAAC.Story
         {
             S("Naomi", "Welcome to the Airlift. Every operation starts on this pad."),
             S("Relle", "It's freezing up here... and the clouds are under us."),
-            S("Naomi", "Take a look around if you want. Come talk to me when you're done gawking."),
+            S("Naomi", "Your squad's already here. Mara, by the railing. Elian, the one with the notebook."),
+            S("Naomi", "Go introduce yourself. You'll be trusting them with your life. Come talk to me when you're done."),
         };
 
-        public const string AirliftHint = "Look around, then talk to Naomi";
+        public const string AirliftHint = "Meet your squad (Mara, Elian), then talk to Naomi";
 
         public static List<VnLine> AirliftInspect(string obj) => obj switch
         {
@@ -245,25 +246,6 @@ namespace SERAAC.Story
             },
             "stairs" => new() { S("Relle", "The stairs back down. Naomi's waiting, though.") },
             _ => new() { N("Wind howls across the platform.") },
-        };
-
-        public static List<VnLine> NaomiAirlift(System.Action ready) => new()
-        {
-            S("Naomi", "Seen enough?"),
-            new()
-            {
-                Speaker = "Naomi", Text = "Then let's get you ready for your first real operation.",
-                Choices = new() { new VnChoice("I'm ready.", ready), new VnChoice("Give me a minute.", null) },
-            },
-        };
-
-        public static List<VnLine> NaomiBriefing() => new()
-        {
-            S("Relle", "My first operation? Today?"),
-            S("Naomi", "The Fallen Academy. Our old campus, before the Blight took it."),
-            S("Naomi", "Something big has been nesting there. Scouts call it the Wyvern."),
-            S("Relle", "And you want to send me."),
-            S("Naomi", "I want to send a squad. You're in it. Come on, to the Sanctum. I'll show you how to prepare."),
         };
 
         // ------------------------------------------------------------------ 4. The Sanctum (hub tutorial)
@@ -325,10 +307,10 @@ namespace SERAAC.Story
         public static List<VnLine> WyvernDown() => new()
         {
             N("The Wyvern crashes into the rubble of the old lecture hall, and does not rise again."),
-            S("Relle", "...It's over. It's actually over."),
+            S("Relle", "...It's down. It's actually down."),
             N("Pulverizer hums in her hand, warm and satisfied."),
-            S("Relle", "Naomi's never going to believe this."),
-            VnLine.TitleCard("End of the playtest"),
+            S("Naomi", "Don't celebrate yet. Nothing counts until we're out."),
+            S("Naomi", "Find an Extraction Point. Then we go home."),
         };
     }
 }

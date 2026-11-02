@@ -16,6 +16,7 @@ namespace SERAAC.Screens
         private readonly bool _extracted;
         private readonly bool _abandoned;
         private float _age;
+        public System.Action OnContinue;   // replaces going back to the hub (the playtest ending)
 
         public ResultScreen(TrialRun run, bool extracted, bool abandoned = false)
         {
@@ -33,7 +34,10 @@ namespace SERAAC.Screens
         {
             _age += (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (_age > 0.8f && (Input.Confirm || Input.Cancel || UI.Ui.Clicked("continue")))
-                Screens.Replace(Meta.Playtest.Active ? new PlaytestScreen() : new HubScreen());   // playtests return to their menu
+            {
+                if (OnContinue != null) OnContinue();
+                else Screens.Replace(Meta.Playtest.Active ? new PlaytestScreen() : new HubScreen());   // playtests return to their menu
+            }
         }
 
         public override void Draw(SpriteBatch sb, GameTime gameTime)

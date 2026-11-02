@@ -33,14 +33,6 @@ namespace SERAAC.Data
             RewardText = "Butcher's Hatchet (weapon)",
         };
 
-        public static readonly QuestDef Reflection = new()
-        {
-            Id = "reflection_trial", Name = "Through the Glass", Giver = "The Reflection",
-            Description = "Win a fight against an Elite with Relle in your party, then find the Reflection again.",
-            Goal = QuestGoal.WinEliteWith, GoalCharacter = "relle",
-            RewardText = "Unlocks Elle (Inverted Relle)",
-        };
-
         public static readonly QuestDef MathCG = new()
         {
             Id = "mathcg_trial",
@@ -53,7 +45,7 @@ namespace SERAAC.Data
 
         // MarenHunt and MathCG are out with their givers (Maren / Topsala Tap have no sprites yet, see NpcDb).
         // Add them back here when those NPCs return.
-        public static readonly List<QuestDef> All = new() { Reflection };
+        public static readonly List<QuestDef> All = new();
 
         public static QuestDef Get(string id) => All.FirstOrDefault(q => q.Id == id);
     }

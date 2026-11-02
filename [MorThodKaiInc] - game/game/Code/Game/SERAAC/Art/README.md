@@ -38,10 +38,13 @@ Pose names the game uses:
 | `walk` | the party walking in rooms (falls back to the reference pose) |
 | any name in a skill's `Anim` | played while that skill resolves. `Anim = "swing1,swing2"` plays one pose per hit (see `Data/CharacterDb.cs`) |
 
-Current sheets: `relle.json`, `relle_inverted.json` (Elle), `pillow.json`, `bram.json` (stand-in for Mara), `noa.json` (stand-in for Elian), `winter.json`, enemies `gnawer.json`, `husk.json` + `husk_curled.json`, `wraith.json`, `wyvern.json`, and `monster.json` (the mock-up monster).
+Current sheets: `relle.json` + `relle_idle.json`, `mara.json`, `elian.json`, `naomi_party.json` (and `naomi.json` for the spar), `pillow.json`, enemies `gnawer.json`, `husk.json` + `husk_curled.json`, `wraith.json`, `wyvern.json`, and `monster.json` (the mock-up monster).
 Art drawn facing **left** can set `"facesLeft": true` (Gnawer, Wyvern) and the game mirrors it.
 An enemy can use different art while roaming rooms: `ExploreArtId` in `Data/EnemyDb.cs` (Husk uses `enemy_husk_curled`).
-A sheet can set `"scale"` to draw a character bigger or smaller than normal (the Warden sheet uses `1.1`).
+A sheet can set `"scale"` to draw a character bigger or smaller than normal.
+A sheet can set `"pixelBase"`: how many sheet pixels make a standard-height character. Sheets drawn at the same pixel size
+use the same value, so their characters keep the heights they are drawn with (Relle and Naomi use `104`: Relle is 89 px
+tall, Naomi 104, so Relle stands shorter). Without it, every character is drawn the same height.
 
 ### Monster recolours
 

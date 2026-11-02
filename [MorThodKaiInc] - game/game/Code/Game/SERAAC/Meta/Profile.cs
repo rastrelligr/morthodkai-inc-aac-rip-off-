@@ -52,6 +52,9 @@ namespace SERAAC.Meta
         // Prologue progress (Story/StoryFlow.cs): "" not started, then dorm, spar, airlift, hub, academy, done.
         public string Story { get; set; } = "";
         public List<string> StoryFlags { get; set; } = new();   // one-time story events (funds received...)
+        // Squadmates' feelings about Relle (Story/Squad.cs): character id -> rapport, and who she has flirted with.
+        public Dictionary<string, int> Rapport { get; set; } = new();
+        public List<string> RomanceInterest { get; set; } = new();
         public int TrialsStarted { get; set; }
         public int Extractions { get; set; }
         public int Defeats { get; set; }
@@ -60,7 +63,7 @@ namespace SERAAC.Meta
         {
             var p = new Profile
             {
-                PartyOrder = new() { "relle", "warden", "hunter", "priest" },
+                PartyOrder = new() { "relle", "warden", "naomi", "priest" },
                 Stash = new() { "rusted_blade", "pale_locket" },
             };
             p.EnsureCharacters();

@@ -1,0 +1,8 @@
+{
+  // Elian (the Adept). Still pose for now; add an idle grid like naomi_party.json when it is animated.
+  "id": "char_priest",
+  "image": "ElianIdle.png",
+  "reference": "idle",
+  "scale": 1.0,
+  "frames": [ { "name": "idle" } ]
+}

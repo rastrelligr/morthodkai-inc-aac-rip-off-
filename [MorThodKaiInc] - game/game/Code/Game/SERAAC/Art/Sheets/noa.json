@@ -1,8 +1,0 @@
-{
-  // Stand-in for Elian (char_priest): this is still Sister Noa's drawing until Elian's sheet arrives.
-  "id": "char_priest",
-  "image": "Noa.png",
-  "reference": "idle",
-  "scale": 1.0,
-  "frames": [ { "name": "idle" } ]
-}

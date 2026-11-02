@@ -41,5 +41,5 @@ Each entry is a named preset. Every field is optional.
 | `death` | a unit falls |
 | `victory` | on each surviving party member after a win |
 
-Current skill effects: `shot` (Winter), `hex` (Mireille, the Hymn Below), `flame` (Black Flame), `bile` (Spitter, the Source).
+Current skill effects: `shot` (unused for now), `hex` (Mireille, the Hymn Below), `flame` (Black Flame), `bile` (Spitter, the Source).
 Add a new preset here and set `HitFx = "your_preset"` on a skill to use it. The self-test fails if a skill names a preset that doesn't exist.

@@ -11,6 +11,9 @@ namespace SERAAC.Core
     {
         public float MusicVolume { get; set; } = 0.25f;
         public float SfxVolume { get; set; } = 0.7f;
+        // Dialogue helper: tags each choice with its tone (kind, bold, ask, flirt) and shows how the squad took
+        // what Relle said ("Mara approves"). Off by default: players read the characters themselves.
+        public bool DialogueHelper { get; set; }
 
         public static Settings Current { get; private set; } = new();
 

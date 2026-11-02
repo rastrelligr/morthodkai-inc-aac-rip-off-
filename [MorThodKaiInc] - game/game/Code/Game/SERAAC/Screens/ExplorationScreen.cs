@@ -783,7 +783,7 @@ namespace SERAAC.Screens
                     if (_modalIndex == 0 && _run.CanExtract)
                     {
                         _run.Extract(Profile);
-                        Screens.Replace(new ResultScreen(_run, extracted: true));
+                        Screens.Replace(new ResultScreen(_run, extracted: true) { OnContinue = Story.StoryFlow.OnExtracted() });
                     }
                     else _modal = Modal.None;
                     break;
@@ -1231,7 +1231,8 @@ namespace SERAAC.Screens
                 bool moving = _moving && _modal == Modal.None;
                 float step = moving ? (float)Math.Abs(Math.Sin(_walkAnim * 12)) * 3 : 0;
                 // Their overworld sprite (Art/Overworld/<id>.png) when they have one, else the combat sheet.
-                string art = Sprites.Get("Overworld/" + m.Def.Id) != null ? "Overworld/" + m.Def.Id : m.Def.ArtId;
+                string ow = m.Def.OverworldArt ?? "Overworld/" + m.Def.Id;
+                string art = Sprites.Get(ow) != null ? ow : m.Def.ArtId;
                 Figures.Unit(sb, art, m.Def.Role.Substring(0, 1),
                     new Rectangle((int)s.X - 15, (int)(s.Y - 44 - step), 30, 50), m.Def.Color, false, t, bob: false, pose: "walk");
             }

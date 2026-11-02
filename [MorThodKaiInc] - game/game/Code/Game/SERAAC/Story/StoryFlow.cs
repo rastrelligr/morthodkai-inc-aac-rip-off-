@@ -15,9 +15,11 @@ namespace SERAAC.Story
     // The prologue, chapter by chapter (the playtest build):
     //   dorm     Naomi wakes Relle up (VN), then Relle walks around her room (Art/Maps/RelleDorm.tmx)
     //   spar     time skip to the Staging Room's combat simulator; the simulated spar teaches combat (Combat/CombatTutorial.cs)
-    //   airlift  the Airlift platform (Art/Maps/RooftopAirlift.tmx); talking to Naomi starts the briefing
+    //   airlift  the Airlift platform (Art/Maps/RooftopAirlift.tmx): one talk each with Mara, Elian and Naomi
+    //            (Story/SquadTalk.cs); Naomi starts the briefing. Knock on the Osprey three times for Pillow;
+    //            talking to him before the squad leaves is the only way he joins.
     //   hub      the Sanctum, with Naomi explaining each tab; funds to spend; only the Fallen Academy opens
-    //   academy  the Fallen Academy as a whole trial; beating the Wyvern ends the playtest
+    //   academy  the Fallen Academy as a whole trial; beat the Wyvern, then extract to end the playtest
     //   done
     // Progress is saved in Profile.Story, so Continue on the title screen resumes the current chapter.
     public static class StoryFlow
@@ -164,8 +166,10 @@ namespace SERAAC.Story
                 Tint = new Microsoft.Xna.Framework.Color(40, 60, 120) * 0.12f,
                 DropShadow = new Microsoft.Xna.Framework.Vector2(70, 110),
             };
+            int knocks = 0;
             scene.OnArrive = s =>
             {
+                if (Squad.Flag(SquadTalk.PillowFlag)) ShowPillow(s);
                 s.Locked = true;
                 s.Say(StoryScripts.AirliftArrive(), () =>
                 {
@@ -175,18 +179,44 @@ namespace SERAAC.Story
             };
             scene.OnInteract = (s, o) =>
             {
-                if (o.Class == "npc" && o.Name == "Naomi")
+                if (o.Class == "npc")
                 {
-                    bool ready = false;
-                    s.Say(StoryScripts.NaomiAirlift(() => ready = true), () =>
+                    switch (o.Name)
                     {
-                        if (!ready) return;
-                        s.Locked = true;
-                        s.Say(StoryScripts.NaomiBriefing(), () =>
-                        {
-                            SetStage(Hub);
-                            Screens.Replace(new HubScreen { Tutorial = true });
-                        });
+                        case "Naomi":
+                            bool ready = false;
+                            s.Say(SquadTalk.AirliftTalk(Squad.Naomi, () => ready = true), () =>
+                            {
+                                if (!ready) return;
+                                s.Locked = true;
+                                s.Say(SquadTalk.Briefing(), () =>
+                                {
+                                    SetStage(Hub);
+                                    Screens.Replace(new HubScreen { Tutorial = true });
+                                });
+                            });
+                            return true;
+                        case "Mara": s.Say(SquadTalk.AirliftTalk(Squad.Mara)); return true;
+                        case "Elian": s.Say(SquadTalk.AirliftTalk(Squad.Elian)); return true;
+                        case "Pillow":
+                            s.Say(SquadTalk.PillowTalk(), () =>
+                            {
+                                if (Profile.IsUnlocked(Squad.Pillow)) return;
+                                Profile.Unlock(Squad.Pillow);
+                                s.Toast("Pillow joined the Sanctum. Somehow.");
+                            });
+                            return true;
+                    }
+                }
+                if (o.Name == "osprey" && !Squad.Flag(SquadTalk.PillowFlag))
+                {
+                    knocks++;
+                    s.Say(SquadTalk.OspreyKnock(knocks), () =>
+                    {
+                        if (knocks < 3) return;
+                        Squad.SetFlag(SquadTalk.PillowFlag);
+                        ShowPillow(s);
+                        s.Toast("???");
                     });
                     return true;
                 }
@@ -195,6 +225,9 @@ namespace SERAAC.Story
             };
             return new OverworldScreen(scene);
         }
+
+        private static void ShowPillow(OverworldScreen s) =>
+            s.PlaceNpc("Pillow", "Overworld/TapOverworldSprite", s.PointOf("pillow_spot") ?? s.PlayerPos);
 
         // ------------------------------------------------------------------ 4. the Sanctum
 
@@ -211,13 +244,26 @@ namespace SERAAC.Story
 
         // ------------------------------------------------------------------ 5. the end
 
-        // The exploration screen calls this when a fight completes a Main objective (the Wyvern).
+        public const string WyvernFlag = "wyvern_down";
+
+        // The exploration screen calls this when a fight completes a Main objective (the Wyvern). The playtest
+        // doesn't end here: the squad still has to make it to an Extraction Point.
         public static bool OnMainObjective()
         {
             if (Profile.Story != Academy) return false;
-            SetStage(Done);
-            Screens.PushInstant(new StoryScreen(StoryScripts.WyvernDown(), () => Screens.Replace(new EndScreen()), black: true));
+            Squad.SetFlag(WyvernFlag);
+            Screens.PushInstant(new StoryScreen(StoryScripts.WyvernDown()));
             return true;
+        }
+
+        // After extracting from a trial: what Continue on the results screen does. During the prologue, extracting
+        // once the Wyvern is down plays the flight home and ends the playtest. Null = the usual (back to the hub).
+        public static Action OnExtracted()
+        {
+            if (Profile.Story != Academy || !Squad.Flag(WyvernFlag)) return null;
+            SetStage(Done);
+            return () => Screens.Replace(new BlankScreen(() =>
+                Screens.PushInstant(new StoryScreen(SquadTalk.FlightHome(), () => Screens.Replace(new EndScreen()), black: true))));
         }
     }
 

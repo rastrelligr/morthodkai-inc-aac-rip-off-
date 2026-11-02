@@ -5,6 +5,7 @@
   "id": "char_relle",
   "image": "relle_sheet.png",
   "reference": "combat_idle",
+  "scale": 0.86,   // her attack poses match the idle sheet: 89 px tall against Naomi's 104 (relle_idle.json)
   "frames": [
     { "name": "combat_idle", "box": [300, 100, 580, 890],  "footX": 510 },
     { "name": "portrait",    "box": [260, 1160, 500, 850], "footX": 530 },

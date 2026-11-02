@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-up" width="70" height="70" tilewidth="16" tileheight="16" infinite="0" nextlayerid="14" nextobjectid="11">
+<map version="1.10" tiledversion="1.12.2" orientation="orthogonal" renderorder="right-up" width="70" height="70" tilewidth="16" tileheight="16" infinite="0" nextlayerid="14" nextobjectid="14">
  <tileset firstgid="1" source="Helipad.tsx"/>
  <tileset firstgid="2143" source="Osprey.tsx"/>
  <tileset firstgid="3299" source="OspreyShadow.tsx"/>
@@ -267,6 +267,23 @@
    <property name="sprite" value="Overworld/naomi"/>
    <property name="label" value="Talk to Naomi"/>
   </properties>
+  <point/>
+ </object>
+ <object id="11" name="Mara" class="npc" x="776" y="500">
+  <properties>
+   <property name="sprite" value="Overworld/mara"/>
+   <property name="label" value="Talk to Mara"/>
+  </properties>
+  <point/>
+ </object>
+ <object id="12" name="Elian" class="npc" x="392" y="736">
+  <properties>
+   <property name="sprite" value="Overworld/Elian"/>
+   <property name="label" value="Talk to Elian"/>
+  </properties>
+  <point/>
+ </object>
+ <object id="13" name="pillow_spot" class="spawn" x="280" y="620">
   <point/>
  </object>
  </objectgroup>

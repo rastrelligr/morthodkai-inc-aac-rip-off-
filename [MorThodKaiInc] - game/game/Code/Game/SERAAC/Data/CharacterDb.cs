@@ -49,6 +49,8 @@ namespace SERAAC.Data
         public string FaceArt;
         public Vector2 FaceCenter = new(0.5f, 0.25f);
         public float FaceHeight = 0.4f;
+        // Walking sprite on story maps and in Trials (Art/Overworld). Null = Overworld/<Id>, else the combat sheet.
+        public string OverworldArt;
 
         public bool Has(PassiveKind k) => Passives.Any(p => p.Kind == k);
 
@@ -59,7 +61,7 @@ namespace SERAAC.Data
             Skills.Concat(CommonActions.PartySpecials);
     }
 
-    // The playable roster, from "New Playable Character Design" (Relle, Mara, Elian) plus the others rebalanced
+    // The playable roster: Relle, Mara, Elian, Naomi and Pillow, from "New Playable Character Design" and rebalanced
     // to the same scale. Spec damage numbers = Damage stat x Power, before position / crit / target modifiers.
     public static class CharacterDb
     {
@@ -79,6 +81,7 @@ namespace SERAAC.Data
         public static readonly CharacterDef Relle = new()
         {
             Id = "relle", Name = "Relle", Role = "Striker",
+            OverworldArt = "Overworld/relle",
             FaceArt = "Dialogue/Portrait/Portrait_Relle", FaceCenter = new Vector2(0.57f, 0.22f), FaceHeight = 0.4f,
             Blurb = "The protagonist. She prayed for something to change, and something answered. Fights up close with Pulverizer, a flesh-eating bonded blade: it feeds, she heals.",
             BaseHp = 28, BaseDamage = 5, BaseSpeed = 6, MaxSp = 5, Color = new Color(200, 70, 60),
@@ -108,10 +111,11 @@ namespace SERAAC.Data
         // Warden: Mara replaces Bram (keeps the "warden" id so saves carry over). Spec (Damage 4): Shield Bash 4.
         // Additions to the design document: Iron Rebuke (cash Guard in for damage) and a counter-attack after intercepting, so Guard
         // stacks give her a choice and a payoff like Relle's Feast.
-        // Art: draws with Bram's sheet (char_warden) until Mara's sheet arrives.
         public static readonly CharacterDef Warden = new()
         {
             Id = "warden", Name = "Mara", Role = "Warden",
+            OverworldArt = "Overworld/mara",
+            FaceArt = "Dialogue/Portrait/Portrait_Mara", FaceCenter = new Vector2(0.5f, 0.3f), FaceHeight = 0.42f,
             Blurb = "A defensive frontliner. Her infected, the Ironbound Aegis, turns into shield and armour to take the blows meant for her allies, and hits back.",
             BaseHp = 44, BaseDamage = 4, BaseSpeed = 3, MaxSp = 5, Color = new Color(80, 110, 150),
             Passives = new()
@@ -138,10 +142,11 @@ namespace SERAAC.Data
         // Adept: Elian replaces Sister Noa (keeps the "priest" id so saves carry over). Spec (Damage 3): Bind 2.
         // Additions to the design document: Thread pays off (Threadweaver: a Woven skill reaches everyone) and Snare Line pulls enemies
         // into the reach of front-only strikers (Relle's Pierce / Cleaver, Pillow's Rend).
-        // Art: draws with Noa's sheet (char_priest) until Elian's sheet arrives.
         public static readonly CharacterDef Priest = new()
         {
             Id = "priest", Name = "Elian", Role = "Adept",
+            OverworldArt = "Overworld/Elian",
+            FaceArt = "Dialogue/Portrait/Portrait_Elian", FaceCenter = new Vector2(0.5f, 0.3f), FaceHeight = 0.42f,
             Blurb = "A support who mends wounds and moves allies, and enemies, with Threadweaver, an infected made of thread.",
             BaseHp = 22, BaseDamage = 3, BaseSpeed = 5, MaxSp = 5, Color = new Color(200, 190, 150),
             Passives = new()
@@ -168,42 +173,57 @@ namespace SERAAC.Data
 
         // ---- Strikers (only 3 classes for now: Striker, Warden, Adept). Rebalanced to the new enemy scale.
 
-        // Pillow, redesigned: a counter-puncher. Skills leave him Guarded, and while Guarded he strikes back.
+        // Pillow: a developer who wandered into the game. Half asleep, bad at math on purpose, and very good with
+        // dogs. Still a counter-puncher: every skill sends him into a power nap (Guarded), and poking him while he
+        // naps gets swatted on reflex. His dog pulls targets into reach and his hatred of math scrambles the enemy
+        // line; when the fried chicken shop is finally open he eats and heals.
         public static readonly CharacterDef Knight = new()
         {
             Id = "knight", Name = "Pillow", Role = "Striker",
-            Blurb = "A knight with a bonded blade who looks half asleep, and swings back the moment you touch him. (Placeholder bio.)",
-            BaseHp = 34, BaseDamage = 6, BaseSpeed = 5, MaxSp = 5, Color = new Color(170, 60, 70),
+            // Hidden: joins only if Relle finds him on the Airlift and talks to him before the squad leaves
+            // (Story/StoryFlow.cs). No hint, so the Sanctum doesn't list him until then.
+            StartsUnlocked = false,
+            OverworldArt = "Overworld/TapOverworldSprite",
+            FaceArt = "Dialogue/Portrait/Portrait_Pillow", FaceCenter = new Vector2(0.5f, 0.3f), FaceHeight = 0.42f,
+            Blurb = "Found asleep in the Osprey's cargo bay. Fights with a sword that looks like it fell out of a block game, a dog that may or may not be called Project, and a deep, personal hatred of math.",
+            BaseHp = 34, BaseDamage = 5, BaseSpeed = 5, MaxSp = 5, Color = new Color(170, 60, 70),
             Passives = new()
             {
-                Frontline,
-                new() { Kind = PassiveKind.Riposte, Name = "Sleepwalker's Guard",
-                    Description = "After using a skill Pillow is Guarded until he acts again (takes 50% less). While Guarded he strikes back at anyone who attacks him alone." },
+                new() { Kind = PassiveKind.Riposte, Name = "Power Nap",
+                    Description = "After using a skill Pillow dozes off: Guarded until he acts again (takes 50% less). Anyone who attacks him alone while he naps gets swatted on reflex." },
+                new() { Kind = PassiveKind.Frontline, Name = "Twelve Out of Ten",
+                    Description = "Deals x1.25 damage in Front 1 or Front 2. Every dog is twelve out of ten. So is every swing." },
             },
             Skills = new()
             {
-                new() { Id = "rend", Name = "Rend", Kind = ActionKind.Attack, Power = 1.0f,
+                new() { Id = "pixel_sword", Name = "Pixel Sword", Kind = ActionKind.Attack, Power = 1.0f,
                     UsableFrom = Ranks.Of("12"), TargetRanks = Ranks.Of("12"),
-                    Description = "A heavy slash at the enemy front. Leaves him Guarded." },
-                new() { Id = "black_flame", Name = "Black Flame", Kind = ActionKind.Attack, Power = 0.7f, SpCost = 2,
-                    UsableFrom = Ranks.Of("123"), TargetRanks = Ranks.All,
-                    Applies = StatusKind.Blight, StatusTurns = 3, StatusPower = 2, HitFx = "flame",
-                    Description = "Dark fire from the bonded blade. Burns any enemy and Blights it (2 dmg, 3 turns)." },
-                new() { Id = "moonfall", Name = "Moonfall", Kind = ActionKind.Attack, Power = 0.9f, SpCost = 3, AreaEffect = true,
-                    UsableFrom = Ranks.Of("12"), TargetRanks = Ranks.Of("12"), Applies = StatusKind.Mark, StatusTurns = 2,
-                    Description = "A sweeping cut through the whole enemy front row that Marks them (+35% damage taken, 2 turns)." },
+                    Description = "A swing with a sword that has suspiciously square edges. Hits an enemy at the front, then naps." },
+                new() { Id = "fetch_project", Name = "Fetch, Project!", Kind = ActionKind.Attack, Power = 0.6f, SpCost = 1,
+                    UsableFrom = Ranks.Of("123"), TargetRanks = Ranks.Of("234"), PullForward = 1,
+                    Applies = StatusKind.Mark, StatusTurns = 2, Melee = false,
+                    Description = "He calls Chao-guay. The dog's name is Project. It comes anyway: it grabs an enemy behind the front, drags it 1 forward and Marks it (+35% damage taken, 2 turns)." },
+                new() { Id = "i_hate_math", Name = "I Hate Math", Kind = ActionKind.Attack, Power = 0.5f, SpCost = 2, AreaEffect = true,
+                    UsableFrom = Ranks.Of("123"), TargetRanks = Ranks.All, ShuffleTargets = true, HitFx = "hex", Melee = false,
+                    Description = "He tries to work out the damage, gives up, and throws the textbook. Hits every enemy and scrambles their positions." },
+                new() { Id = "morthodkai_open", Name = "MorThodKai Is Open", Kind = ActionKind.Attack, Power = 1.2f, SpCost = 3, Lifesteal = 0.35f,
+                    UsableFrom = Ranks.Of("12"), TargetRanks = Ranks.Of("12"), Priority = true, HitFx = "flame",
+                    Description = "The fried chicken shop is open. For once. Acts first, hits an enemy at the front hard, and heals him for 35% of the damage. He will not share." },
             },
         };
 
         // Naomi: a swift Striker who hits lighter than the others and controls the fight instead. She slows the
         // front, shoves it back out of reach, cuts a wind-up short before anyone else moves, and Marks the whole
         // line for the heavy hitters. Read the Opening pays her back on anything she has already crippled.
+        // She is fast enough to dart in from Back 1, so everything but Sweeping Kick works from the first three slots
+        // (the default party puts her there, behind Relle and Mara); Frontline still only pays at the front.
         public static readonly CharacterDef Naomi = new()
         {
             Id = "naomi", Name = "Naomi", Role = "Striker",
+            OverworldArt = "Overworld/naomi",
             FaceArt = "Dialogue/Portrait/Portrait_Naomi", FaceCenter = new Vector2(0.49f, 0.27f), FaceHeight = 0.38f,
             Blurb = "Senior Striker and Relle's reluctant mentor. Fast, precise and patient: she takes enemies apart before she takes them down.",
-            BaseHp = 26, BaseDamage = 4, BaseSpeed = 8, MaxSp = 5, Color = new Color(150, 140, 160),
+            BaseHp = 30, BaseDamage = 5, BaseSpeed = 8, MaxSp = 5, Color = new Color(150, 140, 160),
             Passives = new()
             {
                 new() { Kind = PassiveKind.Exploit, Name = "Read the Opening", Description = "Deals x1.3 damage to Slowed, Marked or Blighted enemies." },
@@ -212,73 +232,17 @@ namespace SERAAC.Data
             Skills = new()
             {
                 new() { Id = "flicker_cut", Name = "Flicker Cut", Kind = ActionKind.Attack, Power = 1.0f, SpCost = 0, Melee = true,
-                    UsableFrom = Ranks.Of("12"), TargetRanks = Ranks.Of("12"), Applies = StatusKind.Slow, StatusTurns = 2, StatusPower = 2, HitFx = "slash",
+                    UsableFrom = Ranks.Of("123"), TargetRanks = Ranks.Of("12"), Applies = StatusKind.Slow, StatusTurns = 2, StatusPower = 2, HitFx = "slash",
                     Description = "A quick cut at an enemy in front. Slows it (-2 Speed, 2 turns)." },
                 new() { Id = "sweeping_kick", Name = "Sweeping Kick", Kind = ActionKind.Attack, Power = 0.6f, SpCost = 1, AreaEffect = true, KnockBack = 1, Melee = true,
                     UsableFrom = Ranks.Of("12"), TargetRanks = Ranks.Of("12"), HitFx = "impact",
                     Description = "Kick through the enemy front row and push each of them 1 position back." },
                 new() { Id = "pommel_strike", Name = "Pommel Strike", Kind = ActionKind.Attack, Power = 0.9f, SpCost = 2, Priority = true, Interrupts = true, Melee = true,
-                    UsableFrom = Ranks.Of("12"), TargetRanks = Ranks.Of("12"), Applies = StatusKind.Slow, StatusTurns = 2, StatusPower = 3, HitFx = "impact",
+                    UsableFrom = Ranks.Of("123"), TargetRanks = Ranks.Of("12"), Applies = StatusKind.Slow, StatusTurns = 2, StatusPower = 3, HitFx = "impact",
                     Description = "Acts first. Strike an enemy in front with the hilt: interrupts a wind-up and Slows it (-3 Speed, 2 turns)." },
                 new() { Id = "thousand_cuts", Name = "Thousand Cuts", Kind = ActionKind.Attack, Power = 0.55f, SpCost = 3, AreaEffect = true,
-                    UsableFrom = Ranks.Of("12"), TargetRanks = Ranks.All, Applies = StatusKind.Mark, StatusTurns = 2, HitFx = "slash",
+                    UsableFrom = Ranks.Of("123"), TargetRanks = Ranks.All, Applies = StatusKind.Mark, StatusTurns = 2, HitFx = "slash",
                     Description = "Dart through every enemy, leaving each one Marked (+35% damage taken, 2 turns)." },
-            },
-        };
-
-        // Winter: now a back-row Striker (same kit).
-        public static readonly CharacterDef Hunter = new()
-        {
-            Id = "hunter", Name = "Winter", Role = "Striker",
-            Blurb = "Sniper. The rifle is a bonded infected that hums when prey is near. (Placeholder bio.)",
-            BaseHp = 22, BaseDamage = 5, BaseSpeed = 7, MaxSp = 5, Color = new Color(110, 140, 80),
-            Passives = new()
-            {
-                new() { Kind = PassiveKind.Deadeye, Name = "Deadeye", Description = "+20% critical hit chance." },
-                Backline,
-            },
-            Skills = new()
-            {
-                new() { Id = "snipe", Name = "Snipe", Kind = ActionKind.Attack, Power = 1.3f, HitFx = "shot",
-                    UsableFrom = Ranks.Of("34"), TargetRanks = Ranks.Of("234"),
-                    Description = "Shoot an enemy behind their front line." },
-                new() { Id = "mark", Name = "Mark Prey", Kind = ActionKind.Attack, Power = 0.5f, HitFx = "shot",
-                    UsableFrom = Ranks.Of("234"), TargetRanks = Ranks.All,
-                    Applies = StatusKind.Mark, StatusTurns = 2,
-                    Description = "Graze and Mark any enemy: it takes +35% damage for 2 turns." },
-                new() { Id = "point_blank", Name = "Point Blank", Kind = ActionKind.Attack, Power = 1.6f,
-                    UsableFrom = Ranks.Of("1"), TargetRanks = Ranks.Of("1"), SelfMoveAfter = 1, Melee = false, HitFx = "shot",
-                    Description = "Huge hit on Front 1, then the recoil knocks Winter back 1 position." },
-                new() { Id = "piercing_round", Name = "Piercing Round", Kind = ActionKind.Attack, Power = 0.9f, SpCost = 3, AreaEffect = true, HitFx = "shot",
-                    UsableFrom = Ranks.Of("34"), TargetRanks = Ranks.All,
-                    Description = "One round through the whole enemy line." },
-            },
-        };
-
-        // Relle's inverted self. Placeholder kit (design pending): a back-row Adept mirror of Relle.
-        public static readonly CharacterDef RelleInverted = new()
-        {
-            Id = "relle_inv", Name = "Elle", Role = "Adept",
-            Blurb = "Relle's reflection, left behind in the dark. Cold where Relle is hungry. (Placeholder kit.)",
-            BaseHp = 22, BaseDamage = 4, BaseSpeed = 6, MaxSp = 5, Color = new Color(70, 190, 210),
-            StartsUnlocked = false,
-            UnlockHint = "Something that looks like Relle has been seen in the Trials. Find it and hear what it wants.",
-            Passives = new()
-            {
-                FeastPassive,
-                Backline,
-            },
-            Skills = new()
-            {
-                new() { Id = "needle", Name = "Needle", Kind = ActionKind.Attack, Power = 0.8f, SpCost = 0,
-                    TargetRanks = Ranks.All, Applies = StatusKind.Mark, StatusTurns = 2, Anim = "stab2", Melee = true,
-                    Description = "A cold thrust at any enemy. Marks it (+35% damage taken, 2 turns)." },
-                new() { Id = "tidewash", Name = "Tidewash", Kind = ActionKind.Heal, Side = TargetSide.Ally, Power = 0.5f, SpCost = 2,
-                    AreaEffect = true, Cleanse = true, UsableFrom = Ranks.Of("234"), Anim = "swing2",
-                    Description = "Heal and cleanse every ally." },
-                new() { Id = "undercut", Name = "Undercut", Kind = ActionKind.Attack, Power = 1.3f, SpCost = 3, KnockBack = 2,
-                    UsableFrom = Ranks.Of("123"), TargetRanks = Ranks.Of("12"), Anim = "slam", Melee = true,
-                    Description = "Slam a front-row enemy and knock it 2 positions back." },
             },
         };
 
@@ -313,8 +277,8 @@ namespace SERAAC.Data
         };
         */
 
-        // Relle (the protagonist) first; Elle is the only character that has to be unlocked.
-        public static readonly List<CharacterDef> All = new() { Relle, Warden, Priest, Naomi, Knight, Hunter, RelleInverted };
+        // Relle (the protagonist) first.
+        public static readonly List<CharacterDef> All = new() { Relle, Warden, Priest, Naomi, Knight };
 
         public static CharacterDef Get(string id) => All.FirstOrDefault(c => c.Id == id);
     }

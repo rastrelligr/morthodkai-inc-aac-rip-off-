@@ -16,15 +16,17 @@ namespace SERAAC.Core
         public int W, H;
         public Color[] Pixels;
         public Vector2 Pivot;           // feet, in this frame's pixel space
+        public bool PixelArt;           // small hand-placed pixels: point-sampled both ways (never smoothed when shrunk)
         private readonly Dictionary<int, Texture2D> _scaled = new();
 
         // A copy resampled to exactly this height (cached), so point sampling stays crisp at any size.
+        // Pixel art is point-sampled up and down; large painted art is area-averaged when shrunk.
         public Texture2D Scaled(GraphicsDevice gd, int height)
         {
             height = Math.Max(1, height);
             if (_scaled.TryGetValue(height, out var tex)) return tex;
             int w = Math.Max(1, (int)Math.Round(W * (height / (float)H)));
-            var data = height > H ? Sprites.Nearest(Pixels, W, H, w, height) : Sprites.Resample(Pixels, W, H, w, height);
+            var data = height > H || PixelArt ? Sprites.Nearest(Pixels, W, H, w, height) : Sprites.Resample(Pixels, W, H, w, height);
             tex = new Texture2D(gd, w, height);
             tex.SetData(data);
             _scaled[height] = tex;
@@ -47,7 +49,11 @@ namespace SERAAC.Core
         public readonly Dictionary<string, (string[] frames, float fps)> Animations = new();
         public string Idle;
 
-        public float ReferenceHeight => Frames[Reference].H;
+        // Sheet pixels that make a standard-height character (0 = the reference pose is standard height).
+        // Sheets drawn at the same pixel size share one value, so their characters keep their drawn heights.
+        public float PixelBase;
+        public float StoredFactor = 1f;   // stored frames are this fraction of the sheet's size (very tall art is shrunk)
+        public float ReferenceHeight => PixelBase > 0 ? PixelBase : Frames[Reference].H;
         public bool Has(string pose) => pose != null && (Frames.ContainsKey(pose) || Animations.ContainsKey(pose));
 
         // Animations play on one shared clock, so every copy of a character breathes in step.
@@ -74,6 +80,7 @@ namespace SERAAC.Core
             public string Image { get; set; }
             public string Reference { get; set; }
             public float Scale { get; set; } = 1f;   // in-game size multiplier (e.g. a prone sniper drawn smaller)
+            public float PixelBase { get; set; }     // see SpriteSet.PixelBase
             public bool FacesLeft { get; set; }      // the art faces left (the game mirrors it so it faces the right way)
             public List<FrameFile> Frames { get; set; } = new();
         }
@@ -95,6 +102,7 @@ namespace SERAAC.Core
 
         // Frames are stored no taller than this; the game never draws characters bigger.
         private const int MaxStoredHeight = 720; // tall enough for big poses at 3x (4K)
+        private const int PixelArtMaxHeight = 400;   // poses this short (in sheet pixels) are pixel art
 
         // Brightness that maps exactly to the recolour colour (the mock-up monster body is ~0.8 grey).
         private const float RecolorMid = 0.78f;
@@ -185,7 +193,7 @@ namespace SERAAC.Core
                                                     : Color.Lerp(mid, Color.White, (lum - RecolorMid) / (1f - RecolorMid));
                     px[i] = new Color((int)(straight.R * a), (int)(straight.G * a), (int)(straight.B * a), c.A);
                 }
-                set.Frames[name] = new SpriteFrame { Name = name, W = f.W, H = f.H, Pixels = px, Pivot = f.Pivot };
+                set.Frames[name] = new SpriteFrame { Name = name, W = f.W, H = f.H, Pixels = px, Pivot = f.Pivot, PixelArt = f.PixelArt };
             }
             _recolored[key] = set;
             return set;
@@ -232,6 +240,7 @@ namespace SERAAC.Core
             if (set != null)
             {
                 set.DisplayScale = sheet.Scale;
+                if (sheet.PixelBase > 0) set.PixelBase = sheet.PixelBase * set.StoredFactor;
                 set.FacesLeft = sheet.FacesLeft;
                 foreach (var (name, anim) in animations) set.Animations[name] = anim;
                 set.Idle = idle;
@@ -304,7 +313,7 @@ namespace SERAAC.Core
             if (refTrim.Width == 0) { reference = cut[0].def.Name; refTrim = cut[0].trim; }
             float factor = Math.Min(1f, MaxStoredHeight / (float)refTrim.Height);
 
-            var set = new SpriteSet { Id = id, Reference = reference };
+            var set = new SpriteSet { Id = id, Reference = reference, StoredFactor = factor };
             foreach (var (def, trim) in cut)
             {
                 var px = Crop(img, trim);
@@ -318,7 +327,7 @@ namespace SERAAC.Core
                 var foot = def.Foot is { Length: 2 }
                     ? new Vector2(def.Foot[0] - trim.X, def.Foot[1] - trim.Y)
                     : new Vector2(def.FootX.HasValue ? def.FootX.Value - trim.X : trim.Width / 2f, trim.Height);
-                set.Frames[def.Name] = new SpriteFrame { Name = def.Name, W = w, H = h, Pixels = px, Pivot = foot * (w / (float)trim.Width) };
+                set.Frames[def.Name] = new SpriteFrame { Name = def.Name, W = w, H = h, Pixels = px, Pivot = foot * (w / (float)trim.Width), PixelArt = trim.Height <= PixelArtMaxHeight };
             }
             return set;
         }

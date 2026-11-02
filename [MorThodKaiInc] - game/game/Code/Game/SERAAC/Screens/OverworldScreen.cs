@@ -138,6 +138,9 @@ namespace SERAAC.Screens
 
         public Vector2 PlayerPos => _player.Pos;
 
+        // A named object's position on the map (a spawn point the story places someone at).
+        public Vector2? PointOf(string name) => _map.Named(name) is { } o ? new Vector2(o.X, o.Y) : null;
+
         public void RemoveNpc(string name) => _npcs.RemoveAll(n => string.Equals(n.Name, name, StringComparison.OrdinalIgnoreCase));
 
         public void PlaceNpc(string name, string sprite, Vector2 pos)
