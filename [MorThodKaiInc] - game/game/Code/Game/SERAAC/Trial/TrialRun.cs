@@ -50,11 +50,13 @@ namespace SERAAC.Trial
         public HashSet<string> Flags { get; } = new();
 
         public bool PartyWiped => Party.All(m => m.Fallen);
+        public bool ShortRoute { get; private set; }
 
         // objective: force one (playtest menu); null = roll from the trial's pool.
-        public static TrialRun Start(Profile profile, AreaDef area, TrialDef trial, int seed, ObjectiveDef objective = null)
+        // shortRoute: the playtest's fixed map (TrialMap.Short) with lighter fights.
+        public static TrialRun Start(Profile profile, AreaDef area, TrialDef trial, int seed, ObjectiveDef objective = null, bool shortRoute = false)
         {
-            var run = new TrialRun { Area = area, Trial = trial, Rng = new Random(seed) };
+            var run = new TrialRun { Area = area, Trial = trial, Rng = new Random(seed), ShortRoute = shortRoute };
             foreach (var id in profile.PartyOrder)
             {
                 var def = CharacterDb.Get(id);
@@ -65,7 +67,8 @@ namespace SERAAC.Trial
             if (objective != null) run.Objective = objective;
             // At most one NPC per trial, chosen from whoever can currently appear.
             var npc = NpcDb.PickFor(new DialogueContext { Profile = profile, Run = run }, run.Rng);
-            run.Map = TrialMap.Generate(trial, run.Rng, withNpcRoom: npc != null, objectiveRooms: run.Objective?.RoomCount ?? 0);
+            run.Map = shortRoute ? TrialMap.Short(run.Rng)
+                : TrialMap.Generate(trial, run.Rng, withNpcRoom: npc != null, objectiveRooms: run.Objective?.RoomCount ?? 0);
             foreach (var room in run.Map.Rooms.Values.Where(r => r.Type == RoomType.Npc)) room.Npc = npc;
             foreach (var room in run.Map.Rooms.Values.OrderBy(r => r.Id)) room.Encounter = run.EncounterFor(room);
             run.EnsureObjectiveTargets();
@@ -106,6 +109,14 @@ namespace SERAAC.Trial
             var list = new List<EnemyDef>();
             EnemyDef Front() => Area.FrontPool[Rng.Next(Area.FrontPool.Count)];
             EnemyDef Back() => Area.BackPool[Rng.Next(Area.BackPool.Count)];
+
+            if (ShortRoute && room.Type is RoomType.Normal or RoomType.Objective)
+            {
+                bool longWay = room.Grid.Y < 0;   // the harder fight on the way to the cache
+                list.Add(EnemyDb.Gnawer);
+                list.Add(room.Type == RoomType.Objective ? Objective.RoomLeader : longWay ? EnemyDb.Wraith : EnemyDb.Gnawer);
+                return list;
+            }
 
             switch (room.Type)
             {

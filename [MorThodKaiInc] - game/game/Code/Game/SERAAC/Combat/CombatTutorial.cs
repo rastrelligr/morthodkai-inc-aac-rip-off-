@@ -17,11 +17,25 @@ namespace SERAAC.Combat
             public string Allow;                       // the only action id the player may pick (null = any)
             public string Instruction;                 // the coach line on screen while choosing
             public string EnemyAction;                 // enemy action id this turn (null = the AI decides)
+            public List<Hint> Hints;                   // spotlights to walk through while choosing (UI/Coach.cs)
         }
 
+        // What a hint points at. Pick and Enemies wait for the player to choose; the rest are read and dismissed.
+        public enum Spot { Pick, Enemies, TurnOrder, Ethergy, Ranks, Specials, WindUp, Guard }
+
+        public sealed class Hint
+        {
+            public Spot Spot;
+            public int Nth;                            // on whose choice it appears: 0 = whoever chooses first
+            public string Text;
+        }
+
+        public readonly List<Hint> OnWindUp = new();   // once, the first turn an enemy is winding up
+        private bool _windUpShown;
+
         public readonly List<Step> Steps = new();
-        public string Banner = "SPARRING";
-        public string Objective = "Spar with Naomi";
+        public string Banner = "SPARRING";             // null = the fight's usual banner
+        public string Objective = "Spar with Naomi";   // null = the run's usual objective
         public string Coach = "Naomi";
 
         private int _turn = -1;
@@ -44,6 +58,17 @@ namespace SERAAC.Combat
                 e.Plan = new PlannedAction { Action = a, Target = target };
             }
             return step.Lines is { Count: > 0 } ? step.Lines : null;
+        }
+
+        // The spotlights for this turn. Call after OnTurnStart.
+        public List<Hint> HintsFor(Battle b)
+        {
+            if (OnWindUp.Count > 0 && !_windUpShown && b.LivingEnemies.Any(e => e.WindUpNext != null))
+            {
+                _windUpShown = true;
+                return OnWindUp;
+            }
+            return Current?.Hints;
         }
 
         // Why this plan isn't allowed right now, or null.

@@ -15,17 +15,31 @@ dotnet run -- --intro --script x.txt  # scripts skip the intro video and "press 
 dotnet run -- --story airlift   # jump to a prologue chapter: dorm, spar, airlift, hub, academy
 ```
 
-## Prologue (playtest flow)
+## Playtest flow (under 10 minutes)
 
-New Game plays the prologue; Continue resumes the chapter saved in `Profile.Story` (`Story/StoryFlow.cs`).
+New Game starts in the Sanctum. Nothing is forced: the Sanctum and the map explain themselves as the player finds things (`UI/Coach.cs`), and short scenes with choices play at a few moments (`Story/SquadTalk.cs`). The first fight spotlights the controls step by step, with any skill allowed.
+
+| Part | What's there | Where |
+|---|---|---|
+| Sanctum | Opening scene. Every tab open, Embark available at once; each tab explains itself the first time. 200 shards given once | `HubScreen` (`Tutorial`) |
+| Fallen Academy map | 8 rooms, two ways to the shrine: quick (one fight) or long (event, a harder fight, a cache). From the shrine: the Wyvern or extraction | `TrialMap.Short`, `ExplorationScreen.BuildTips` |
+| Scenes | Arrival, first win, one talk at the shrine (pick who, with a hidden flirt), the Wyvern's room. Rapport decides who sits with Relle on the flight home | `SquadTalk`, `ExplorationScreen` |
+| First fight | Skills, targets, Ethergy, turn order, positions, Guard and Focus | `StoryScripts.FirstFight` |
+| Wyvern (1 Gnawer escort) | The first wind-up points at the warning and at Guard | `StoryScripts.WyvernCoaching` |
+
+Killing the Wyvern plays a short scene; extracting afterwards plays the flight home and the end-of-playtest screen. If the party falls, tips and scenes that already played don't repeat.
+
+## Earlier chapters (out of the playtest)
+
+Reachable with `--story`; Continue resumes the chapter saved in `Profile.Story` (`Story/StoryFlow.cs`). The Airlift holds the full squad talks and the Pillow easter egg; Pillow does not appear in the playtest for now.
 
 | Chapter | What happens | Where |
 |---|---|---|
 | dorm | Naomi wakes Relle (visual novel), then Relle walks her room, inspects things, takes her blade and leaves | `Art/Maps/RelleDorm.tmx` |
 | spar | Time skip to the training floor; the sparring match teaches actions, Ethergy, Focus, Guard vs a wind-up, Cleaver, Feast (one allowed action per turn, coach line on screen) | `Combat/CombatTutorial.cs`, `StoryScripts.SparTutorial` |
 | airlift | The Airlift platform above the clouds (sky, clouds, fog, wind); talking to Naomi starts the briefing | `Art/Maps/RooftopAirlift.tmx` |
-| hub | Naomi walks through Party, Upgrades (200 shards given once), Equipment and Trials; only the Fallen Academy can be deployed to | `HubScreen` (`Tutorial`) |
-| academy | The Fallen Academy as a full trial. Killing the Wyvern plays a short scene; extracting afterwards plays the flight home and the end-of-playtest screen | `StoryFlow.OnMainObjective` / `OnExtracted`, `Screens/EndScreen.cs` |
+| hub | See the playtest flow above; only the Fallen Academy can be deployed to | `HubScreen` (`Tutorial`) |
+| academy | The Fallen Academy's short route, then the ending | `StoryFlow.OnMainObjective` / `OnExtracted`, `Screens/EndScreen.cs` |
 
 - All prologue lines: `Story/StoryScripts.cs`. Portraits and name colours: `VnCast` in `UI/VnDialogue.cs`.
 - Dialogue (story and NPCs) is a visual novel box: click / Enter / wheel down advances, **L** or wheel up opens the log, **F** auto, **Tab** (or hold Ctrl) skip, **H** or right click hides the box.

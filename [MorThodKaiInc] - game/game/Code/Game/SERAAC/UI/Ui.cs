@@ -73,6 +73,16 @@ namespace SERAAC.UI
             return null;
         }
 
+        // Where `key` was drawn last frame (one item, or all of them together), or null if it wasn't.
+        public static Rectangle? Bounds(string key, int index = -1)
+        {
+            Rectangle? all = null;
+            foreach (var r in _last)
+                if (r.Key == key && (index < 0 || r.Index == index))
+                    all = all == null ? r.Rect : Rectangle.Union(all.Value, r.Rect);
+            return all;
+        }
+
         // True when `key` item was clicked this frame.
         public static bool Clicked(string key, int index = 0) => Input.Click && Hover(key) == index;
 

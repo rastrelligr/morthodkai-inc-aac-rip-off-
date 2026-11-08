@@ -32,6 +32,133 @@ namespace SERAAC.Story
         private static VnLine Ask(string who, string text, params VnChoice[] choices) =>
             new() { Speaker = who, Text = text, Choices = choices.ToList() };
 
+        // ------------------------------------------------------------------ the playtest's scenes
+
+        public const string OpeningFlag = "vn_opening";
+
+        public static List<VnLine> Opening() => new()
+        {
+            S("Naomi", "Relle. You're up. The Fallen Academy, one Wyvern, four of us."),
+            S("Mara", "Finally. I've been ready since breakfast."),
+            S("Elian", "I made a list of everything that could go wrong. It's... two pages."),
+            Ask("Naomi", "First real operation. How are you feeling?",
+                C(VnTone.Bold, "\"Let's go kill it.\"", Squad.Reacts(Squad.Mara, 1),
+                    S("Relle", "Let's go kill it."),
+                    S("Mara", "Ha. I like her.")),
+                C(VnTone.Kind, "\"Honestly? Scared.\"", Squad.Reacts(Squad.Elian, 1),
+                    S("Relle", "Honestly? Scared."),
+                    S("Elian", "Me too. That's on page two.")),
+                C(VnTone.Ask, "\"Why send a rookie?\"", Squad.Reacts(Squad.Naomi, 0, R.Remember),
+                    S("Relle", "Why send a rookie after a Wyvern?"),
+                    S("Naomi", "Because it won't wait until you're ready. Neither will I."))),
+            S("Naomi", "Take a minute in the Sanctum. We leave when you say."),
+        };
+
+        public static List<VnLine> TrialArrive() => new()
+        {
+            N("The Osprey lifts away. The doors of the old Academy grind shut behind the squad."),
+            S("Relle", "...I used to walk past this place."),
+            S("Mara", "Now you get to break in."),
+            S("Naomi", "The Wyvern's somewhere inside. Which way we go is your call, Relle."),
+        };
+
+        public static List<VnLine> FirstWin() => new()
+        {
+            S("Mara", "See? They bleed like anything else."),
+            S("Elian", "Relle, your arm. Let me look at that."),
+            Ask("Elian", "It'll only take a second.",
+                C(VnTone.Kind, "\"Thanks, Elian.\"", Squad.Reacts(Squad.Elian, 1),
+                    S("Relle", "Thanks, Elian."),
+                    S("Elian", "Hold still. There. That's one thing off the list.")),
+                C(VnTone.Bold, "\"Save it for the Wyvern.\"", () => { Squad.React(Squad.Mara, 1); Squad.React(Squad.Elian, -1); },
+                    S("Relle", "I'm fine. Save it for the Wyvern."),
+                    S("Mara", "That's the spirit."),
+                    S("Elian", "...Right. Of course."))),
+        };
+
+        // One chance: who Relle sits with while the shrine's light lasts.
+        public static List<VnLine> ShrineTalk() => new()
+        {
+            N("The shrine's glow settles over the squad. For a moment, nothing is hunting them."),
+            S("Naomi", "Two minutes. Then we move."),
+            new()
+            {
+                Text = "Who does Relle sit with?",
+                Choices = new()
+                {
+                    new VnChoice(VnTone.Ask, "Mara, checking her shield", () => MaraShrine().Append(ShrineEnd)),
+                    new VnChoice(VnTone.Ask, "Elian, writing in his notebook", () => ElianShrine().Append(ShrineEnd)),
+                    new VnChoice(VnTone.Ask, "Naomi, keeping watch", () => NaomiShrine().Append(ShrineEnd)),
+                    new VnChoice(VnTone.Leave, "Nobody. Sit alone.", () => new List<VnLine> { N("Relle watches the far door. It watches back."), ShrineEnd }),
+                },
+            },
+        };
+
+        private static VnLine ShrineEnd => S("Naomi", "Time. On your feet.");
+
+        private static List<VnLine> MaraShrine() => new()
+        {
+            S("Mara", "Don't look at me like that. I'm not tired."),
+            S("Relle", "Your shield arm's shaking."),
+            S("Mara", "It's heavy. Expensive things are."),
+            Ask("Mara", "Scared of what's past that door?",
+                C(VnTone.Kind, "\"A little. Be careful, okay?\"", Squad.Reacts(Squad.Mara, 1),
+                    S("Relle", "A little. Be careful, okay?"),
+                    S("Mara", "...Fine. I'll be careful. Don't tell anyone I said that.")),
+                C(VnTone.Bold, "\"Not at all.\"", null,
+                    S("Relle", "Not at all."),
+                    S("Mara", "Liar. But a good one.")),
+                C(VnTone.Flirt, "\"Not with you standing in front of me.\"", () => Squad.Flirt(Squad.Mara),
+                    S("Relle", "Not with you standing in front of me. That armour's really something."),
+                    S("Mara", "Obviously. It's tailored."),
+                    S("Mara", "..."),
+                    S("Mara", "Wait. Are you- Ask me again when we're back."))),
+        };
+
+        private static List<VnLine> ElianShrine() => new()
+        {
+            S("Relle", "You really keep a list?"),
+            S("Elian", "Things to get better at. Fourteen is \"stop apologising.\" Sorry."),
+            Ask("Elian", "It's silly, isn't it?",
+                C(VnTone.Kind, "\"It isn't.\"", Squad.Reacts(Squad.Elian, 1),
+                    S("Relle", "It isn't. I wish I had one."),
+                    S("Elian", "...Thank you. Most people laugh.")),
+                C(VnTone.Bold, "\"A little.\"", Squad.Reacts(Squad.Elian, -1),
+                    S("Relle", "A little, yeah."),
+                    S("Elian", "Yeah. Sorry. Number fourteen. Sorry.")),
+                C(VnTone.Flirt, "\"Only if there's no room on it for dinner with me.\"", () => Squad.Flirt(Squad.Elian),
+                    S("Relle", "It's only silly if there's no room on it for \"have dinner with Relle.\""),
+                    S("Elian", "I- that's- um."),
+                    N("He writes something very carefully and closes the notebook."),
+                    S("Elian", "Number sixteen. It's written down now, so it has to happen."))),
+        };
+
+        private static List<VnLine> NaomiShrine() => new()
+        {
+            N("Naomi starts checking the straps on Relle's gear without asking."),
+            S("Relle", "I can do my own buckles."),
+            S("Naomi", "You missed two. Hold still."),
+            Ask("Naomi", "When it goes bad in there, you follow my call. Understood?",
+                C(VnTone.Kind, "\"Understood.\"", Squad.Reacts(Squad.Naomi, 1),
+                    S("Relle", "Understood."),
+                    S("Naomi", "Good. That's how everyone gets home.")),
+                C(VnTone.Bold, "\"If it's the right call.\"", Squad.Reacts(Squad.Naomi, 0, R.Remember),
+                    S("Relle", "If it's the right call."),
+                    S("Naomi", "...That's fair. I'll hold myself to that.")),
+                C(VnTone.Flirt, "\"I'd follow you anywhere.\"", () => Squad.Flirt(Squad.Naomi),
+                    S("Relle", "I'd follow you anywhere."),
+                    S("Naomi", "That is not- I was not-"),
+                    S("Naomi", "Did you eat? Here. A ration bar. Don't argue."))),
+        };
+
+        public static List<VnLine> BossRoom() => new()
+        {
+            N("The roof of the lecture hall is gone. Something long and ringed uncoils in the dark."),
+            S("Elian", "That's... bigger than my notes said."),
+            S("Mara", "Then I'll hit it harder."),
+            S("Relle", "...Here we go."),
+        };
+
         // ------------------------------------------------------------------ the conversation frame
 
         private sealed class Talk
@@ -446,7 +573,8 @@ namespace SERAAC.Story
                                       : S("Naomi", "Get some sleep tonight. Real sleep. That's an order."));
                     break;
                 default:
-                    lines.Add(N("Relle sits alone by the window. Nobody says much. Maybe next time."));
+                    lines.Add(N("Mara has her boots up. Elian is writing something down. Naomi counts heads, then counts them again."));
+                    lines.Add(S("Naomi", "Everyone's here. Good work, all of you."));
                     break;
             }
             if (Squad.Flag(PillowFlag))

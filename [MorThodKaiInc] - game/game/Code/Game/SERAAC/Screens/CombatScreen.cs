@@ -69,6 +69,8 @@ namespace SERAAC.Screens
 
         // A scripted, teaching fight (Combat/CombatTutorial.cs): coaching scenes, one allowed action per turn.
         public CombatTutorial Tutorial { get; init; }
+        private Coach _coach;              // this turn's spotlights, if the tutorial has any
+        private Rectangle _windUpBox;
         // A fixed background for this fight (the tutorial picks one); null = the room's / a random one.
         public string StageOverride { get; init; }
         private readonly Action<Battle> _onFinished;
@@ -215,10 +217,77 @@ namespace SERAAC.Screens
             _choosers = _battle.LivingParty.OrderBy(c => c.Slot).ToList();
             _chooserIndex = 0;
             _pickingTarget = _pickingItem = false;
+            _coach = BuildCoach(Tutorial?.HintsFor(_battle));
             _phase = Phase.Choose;
             _cam.Focus(1f, 0f);
             SelectFirstUsable();
             if (first) Say(BarkTrigger.FightStart, RandomPartyMember(), force: true);
+        }
+
+        private Coach BuildCoach(List<CombatTutorial.Hint> hints)
+        {
+            if (hints == null) return null;
+            var steps = new List<CoachStep>();
+            foreach (var h in hints)
+            {
+                int who = h.Nth;
+                if (who >= _choosers.Count) continue;
+                switch (h.Spot)
+                {
+                    case CombatTutorial.Spot.Pick:
+                        steps.Add(new CoachStep
+                        {
+                            Text = h.Text,
+                            Target = () => Ui.Bounds("act") is { } list && Ui.Bounds("special") is { } specials ? Rectangle.Union(list, specials) : null,
+                            When = () => _chooserIndex == who && !_pickingTarget && !_pickingItem,
+                            Done = () => _pickingTarget || _chooserIndex > who,
+                        });
+                        break;
+                    case CombatTutorial.Spot.Enemies:
+                        steps.Add(new CoachStep
+                        {
+                            Text = h.Text,
+                            Target = ChoiceBounds,
+                            When = () => _chooserIndex == who && _pickingTarget,
+                            Done = () => _chooserIndex > who,
+                            Back = () => _chooserIndex == who && !_pickingTarget,
+                        });
+                        break;
+                    default:
+                        steps.Add(new CoachStep
+                        {
+                            Text = h.Text,
+                            Target = () => HintBounds(h.Spot),
+                            When = () => _chooserIndex == who && !_pickingTarget && !_pickingItem,
+                        });
+                        break;
+                }
+            }
+            return new Coach(steps);
+        }
+
+        private Rectangle? ChoiceBounds()
+        {
+            Rectangle? all = null;
+            foreach (var ch in _choices.Where(ch => ch.Unit != null))
+                if (Ui.Bounds("unit", _all.IndexOf(ch.Unit)) is { } r)
+                    all = all == null ? r : Rectangle.Union(all.Value, r);
+            return all;
+        }
+
+        private Rectangle? HintBounds(CombatTutorial.Spot spot)
+        {
+            switch (spot)
+            {
+                case CombatTutorial.Spot.TurnOrder: return Ui.Bounds("order");
+                case CombatTutorial.Spot.Ethergy: return Ui.Bounds("pips", _all.IndexOf(Chooser));
+                case CombatTutorial.Spot.Specials: return Ui.Bounds("special");
+                case CombatTutorial.Spot.Guard: return Ui.Bounds("special", Chooser.Actions.FindIndex(a => a.Id == "defend"));
+                case CombatTutorial.Spot.WindUp: return _windUpBox;
+                case CombatTutorial.Spot.Ranks:
+                    return Ui.Bounds("act") is { } list ? new Rectangle(list.X + 298, list.Y, 124, list.Height) : null;
+                default: return null;
+            }
         }
 
         private void SelectFirstUsable()
@@ -321,7 +390,7 @@ namespace SERAAC.Screens
                     if (_timer <= 0 || (_timer < 0.6f && (Input.Confirm || Input.Click))) BeginChoose();
                     break;
                 case Phase.Choose:
-                    UpdateChoose();
+                    if (_coach?.Update() != true) UpdateChoose();
                     if (_phase == Phase.Choose)
                     {
                         // Lean in toward the aimed target while picking one.
@@ -428,7 +497,7 @@ namespace SERAAC.Screens
             if (Input.DownKey) _actionIndex = (_actionIndex + 1) % n;
             bool clicked = Ui.Pick("act", ref _actionIndex) | Ui.Pick("special", ref _actionIndex);
 
-            if (Input.Cancel && _chooserIndex > 0)
+            if (Input.Cancel && _chooserIndex > 0 && _coach?.Showing != true)
             {
                 Undo();
                 return;
@@ -1009,7 +1078,8 @@ namespace SERAAC.Screens
             }
 
             DrawCoach(sb);
-            if (_phase == Phase.Intro && Tutorial != null) Banner(sb, Tutorial.Banner, Palette.Lilac300);
+            if (_phase == Phase.Choose) _coach?.Draw(sb);
+            if (_phase == Phase.Intro && Tutorial?.Banner != null) Banner(sb, Tutorial.Banner, Palette.Lilac300);
             else if (_phase == Phase.Intro)
                 Banner(sb, _run.Current.Type switch
                 {
@@ -1030,7 +1100,7 @@ namespace SERAAC.Screens
         private void DrawCoach(SpriteBatch sb)
         {
             string text = Tutorial?.Instruction;
-            if (text == null || _phase != Phase.Choose) return;
+            if (text == null || _phase != Phase.Choose || _coach?.Showing == true) return;
             string line = $"{Tutorial.Coach}:  {text}";
             var size = Assets.Body.MeasureString(line);
             // Under the turn order, or under the wind-up alert when one is showing.
@@ -1113,6 +1183,7 @@ namespace SERAAC.Screens
             string title = $"{foe.Name} is winding up {foe.WindUpNext.Name}!";
             float w = Math.Max(Assets.Header.MeasureString(title).X, Assets.Small.MeasureString(help).X) + 56;
             var r = new Rectangle((int)(Game1.Width / 2 - w / 2), 128, (int)w, 54);
+            _windUpBox = r;
             Core.Draw.Slant(sb, new Rectangle(r.X + 5, r.Y + 4, r.Width, r.Height), 14, Palette.Ink * 0.6f);
             Core.Draw.Slant(sb, r, 14, Palette.Ink * 0.88f);
             Core.Draw.Slant(sb, new Rectangle(r.X + 10, r.Y, r.Width - 20, 4), 4, Palette.KwPriority);
@@ -1432,7 +1503,7 @@ namespace SERAAC.Screens
             var lines = new List<string>();
             // A Playtest-menu fight happens outside any map: the trial's objective doesn't apply.
             bool playtestFight = IsPlaytestFight;
-            if (Tutorial != null) lines.Add(Tutorial.Objective);
+            if (Tutorial?.Objective != null) lines.Add(Tutorial.Objective);
             else if (playtestFight) lines.Add("Playtest fight: win, lose or leave (F2)");
             else if (!_run.ObjectiveCompleted)
                 lines.Add(_run.Objective.Count > 1 ? $"{_run.Objective.Task}  {_run.ObjectiveProgress}/{_run.Objective.Count}" : _run.Objective.Task);

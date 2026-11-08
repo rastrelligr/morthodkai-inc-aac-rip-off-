@@ -12,7 +12,9 @@ using MapObject = SERAAC.World.TiledMap.MapObject;
 
 namespace SERAAC.Story
 {
-    // The prologue, chapter by chapter (the playtest build):
+    // New Game goes straight to the Sanctum (the hub chapter), with the tutorial spread over the hub, the trial and
+    // its fights (UI/Coach.cs). The earlier chapters are out of the playtest; --story dorm / spar / airlift still plays them.
+    // The prologue, chapter by chapter:
     //   dorm     Naomi wakes Relle up (VN), then Relle walks around her room (Art/Maps/RelleDorm.tmx)
     //   spar     time skip to the Staging Room's combat simulator; the simulated spar teaches combat (Combat/CombatTutorial.cs)
     //   airlift  the Airlift platform (Art/Maps/RooftopAirlift.tmx): one talk each with Mara, Elian and Naomi
@@ -42,18 +44,18 @@ namespace SERAAC.Story
         // Title screen > New Game.
         public static void Begin()
         {
-            SetStage(Dorm);
-            Screens.Replace(DormScreen());
+            SetStage(Hub);
+            Screens.Replace(new HubScreen { Tutorial = true });
         }
 
         // Title screen > Continue: the chapter the save is in. Saves from before the prologue existed go to the hub.
         public static void Resume()
         {
             string stage = Profile.Story;
-            if (string.IsNullOrEmpty(stage)) stage = Profile.TrialsStarted > 0 ? Done : Dorm;
+            if (string.IsNullOrEmpty(stage)) SetStage(stage = Profile.TrialsStarted > 0 ? Done : Hub);
             switch (stage)
             {
-                case Dorm: Begin(); break;
+                case Dorm: Screens.Replace(DormScreen()); break;
                 case Spar: Screens.Replace(SparScreen()); break;
                 case Airlift: Screens.Replace(AirliftScreen()); break;
                 case Hub: Screens.Replace(new HubScreen { Tutorial = true }); break;

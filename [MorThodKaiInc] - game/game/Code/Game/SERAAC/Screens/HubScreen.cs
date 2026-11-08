@@ -34,49 +34,32 @@ namespace SERAAC.Screens
 
         private static Profile Profile => Game1.Instance.Profile;
 
-        // Prologue: Naomi walks the player through each tab (Story/StoryScripts.cs), one step at a time.
+        // The playtest starts here. Nothing is forced: each tab explains itself the first time it opens (UI/Coach.cs)
+        // and Embark works from the start.
         public bool Tutorial { get; init; }
-        private int _tutStep = -1;
-        private int _tutLevels;          // upgrade levels owned when the upgrade step began
+        private CoachTips _tips;
 
-        private sealed class TutorialStep
+        private CoachStep Explain(Tab tab, string region, string text) => new()
         {
-            public Func<List<UI.VnLine>> Lines;
-            public string Instruction;
-            public Func<HubScreen, bool> Done;
-            public Action OnStart;
-        }
-
-        private static int TotalLevels() => Profile.Characters.Values.Sum(c => c.HpLevel + c.DamageLevel + c.SpeedLevel);
-
-        private static readonly TutorialStep[] Steps =
-        {
-            new() { Lines = StoryScripts.HubWelcome, Instruction = "Open the PARTY tab", Done = h => h._tab == Tab.Party },
-            new() { Lines = StoryScripts.HubParty, Instruction = "Set up your squad, then open UPGRADES", Done = h => h._tab == Tab.Upgrades },
-            new() { Lines = StoryScripts.HubUpgrades, Instruction = "Buy at least one upgrade", Done = h => TotalLevels() > h._tutLevels,
-                    OnStart = () => StoryFlow.GiveFunds(200) },
-            new() { Lines = StoryScripts.HubEquipmentGo, Instruction = "Open the EQUIPMENT tab", Done = h => h._tab == Tab.Equipment },
-            new() { Lines = StoryScripts.HubEquipment, Instruction = "Open the TRIALS tab", Done = h => h._tab == Tab.Trials },
-            new() { Lines = StoryScripts.HubTrials, Instruction = "Select the Fallen Academy, then Embark", Done = _ => false },
+            Text = text,
+            Target = () => Ui.Bounds(region),
+            When = () => _tab == tab && Ui.Bounds(region) != null,
         };
 
-        private bool TutorialOn => Tutorial && _tutStep >= 0 && _tutStep < Steps.Length;
-
-        private void StartStep(int i)
+        private CoachTips BuildTips() => new(new[]
         {
-            _tutStep = i;
-            if (i >= Steps.Length) return;
-            var step = Steps[i];
-            step.OnStart?.Invoke();
-            _tutLevels = TotalLevels();
-            Screens.PushInstant(new StoryScreen(step.Lines()));
-        }
-
-        private void UpdateTutorial()
-        {
-            if (!TutorialOn) return;
-            if (Steps[_tutStep].Done(this)) StartStep(_tutStep + 1);
-        }
+            new CoachStep
+            {
+                Soft = true,
+                Text = "Your squad, upgrades and gear are up here.\nEMBARK whenever you're ready.",
+                Target = () => Ui.Bounds("tab"),
+                When = () => Ui.Bounds("tab") != null,
+                Done = () => _tab != Tab.Trials,
+            },
+            Explain(Tab.Party, "cell", "Four go out: two in front, two behind.\nThe front hits hardest and gets hit hardest."),
+            Explain(Tab.Upgrades, "buy", "The Academy is fronting you 200 shards.\nSpend them on whoever you like."),
+            Explain(Tab.Equipment, "slot", "Everyone has a weapon and a charm.\nGear you find ends up here."),
+        });
 
         public override void OnEnter()
         {
@@ -105,8 +88,19 @@ namespace SERAAC.Screens
         {
             Audio.Music("hub");   // no-op while it's already playing
             _toastTime -= (float)gameTime.ElapsedGameTime.TotalSeconds;
-            if (Tutorial && _tutStep < 0) { StartStep(0); return; }
-            UpdateTutorial();
+            if (Tutorial && _tips == null)
+            {
+                _tips = BuildTips();
+                _column = 1;   // EMBARK is on screen from the start
+                StoryFlow.GiveFunds(200);
+                if (!Squad.Flag(SquadTalk.OpeningFlag))
+                {
+                    Squad.SetFlag(SquadTalk.OpeningFlag);
+                    Screens.PushInstant(new StoryScreen(SquadTalk.Opening()));
+                    return;
+                }
+            }
+            if (_tips?.Update() == true) return;
 
             if (!_picking)
             {
@@ -210,11 +204,6 @@ namespace SERAAC.Screens
 
         private void Embark(AreaDef area, TrialDef trial)
         {
-            if (Tutorial && _tutStep < Steps.Length - 1)
-            {
-                Toast("Naomi: \"Finish getting ready first.\"");
-                return;
-            }
             if (StoryFlow.AcademyOnly && trial.Id != "city_academy")
             {
                 Screens.PushInstant(new StoryScreen(StoryScripts.HubWrongTrial()));
@@ -226,7 +215,7 @@ namespace SERAAC.Screens
                 Toast("Your party is empty. Pick members in the PARTY tab.");
                 return;
             }
-            var run = TrialRun.Start(Profile, area, trial, Environment.TickCount);
+            var run = TrialRun.Start(Profile, area, trial, Environment.TickCount, shortRoute: StoryFlow.AcademyOnly);
             Screens.Replace(new LoadingScreen(run));
         }
 
@@ -387,8 +376,6 @@ namespace SERAAC.Screens
             Ui.Footer(sb, "title", ("Esc", "Title"), ("Enter", "Confirm"));
             Ui.HelpButton(sb, new Vector2(40, Game1.Height - 20), hint + "\nSwitch tab: Tab, Q / E or 1-5.\nDebug: F5 +100 shards, F6 unlock all.");
 
-            if (TutorialOn) DrawCoach(sb, t);
-
             if (_toastTime > 0 && _toast != null)
             {
                 var size = Assets.Body.MeasureString(_toast);
@@ -396,34 +383,8 @@ namespace SERAAC.Screens
                 Core.Draw.Panel(sb, r, Palette.EnemyTag, Palette.Rose);
                 Core.Draw.TextCentered(sb, Assets.Body, _toast, r.Center.ToVector2(), Palette.Text);
             }
-        }
 
-        // Tutorial: Naomi's face and what to do next, bottom left, pulsing.
-        private void DrawCoach(SpriteBatch sb, double t)
-        {
-            string text = Steps[_tutStep].Instruction;
-            var size = Assets.Body.MeasureString(text);
-            int w = (int)size.X + 110;
-            var r = new Rectangle(Game1.Width / 2 - w / 2, Game1.Height - 94, w, 58);
-            float pulse = 0.7f + 0.3f * (float)Math.Sin(t * 4);
-            Core.Draw.Slant(sb, r, 14, Palette.Ink * 0.88f);
-            Core.Draw.Slant(sb, new Rectangle(r.X + 10, r.Bottom - 3, r.Width - 20, 3), 3, Palette.Lilac300 * pulse);
-            var face = Assets.Art("Dialogue/Portrait/Portrait_Naomi");
-            var faceBox = new Rectangle(r.X + 14, r.Y + 5, 48, 48);
-            if (face != null)
-            {
-                var tex = face.Texture;
-                int side = (int)(tex.Width * 0.42f);
-                var src = new Rectangle((tex.Width - side) / 2, (int)(tex.Height * 0.08f), side, side);
-                sb.End();
-                sb.Begin(samplerState: SamplerState.LinearClamp, transformMatrix: Core.Draw.FrameTransform);
-                sb.Draw(tex, faceBox, src, Color.White);
-                sb.End();
-                sb.Begin(samplerState: SamplerState.PointClamp, transformMatrix: Core.Draw.FrameTransform);
-            }
-            Core.Draw.Border(sb, faceBox, Palette.Lilac300, 1);
-            Core.Draw.Text(sb, Assets.Small, "NAOMI", new Vector2(r.X + 76, r.Y + 6), Palette.Lilac300, shadow: false);
-            Core.Draw.Text(sb, Assets.Body, text, new Vector2(r.X + 76, r.Y + 24), Palette.Paper, shadow: false);
+            if (Screens.Top == this) _tips?.Draw(sb);
         }
 
         private void DrawTrials(SpriteBatch sb, double t)
@@ -486,7 +447,7 @@ namespace SERAAC.Screens
                 for (int d = 0; d < 4; d++)
                     Core.Draw.Slant(sb, new Rectangle(r.X + 96 + d * 16, r.Y + 93 + dy, 13, 12), 4, d < tr.Tier ? Palette.Danger : Palette.Grey900);
                 Core.Draw.Text(sb, Assets.Small,
-                    $"Rooms {tr.RoomCount}    Loot x{tr.LootMultiplier:0.0#}    Extraction points {tr.ExtractionPoints}",
+                    $"Rooms {(StoryFlow.AcademyOnly && tr.Id == "city_academy" ? TrialMap.ShortRooms : tr.RoomCount)}    Loot x{tr.LootMultiplier:0.0#}    Extraction points {tr.ExtractionPoints}",
                     new Vector2(r.X + 176, r.Y + 90 + dy), Palette.Text, shadow: false);
                 // The Objective Pool: one of these is rolled each time the trial starts.
                 string pool = string.Join(" / ", tr.Objectives.Select(o => o.Name));

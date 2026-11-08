@@ -10,6 +10,7 @@ namespace SERAAC.Trial
     public sealed class TrialMap
     {
         public const int GridRadius = 4;
+        public const int ShortRooms = 8;   // TrialMap.Short
 
         public readonly Dictionary<Point, Room> Rooms = new();
         public Room Entrance;
@@ -57,6 +58,41 @@ namespace SERAAC.Trial
             map.ComputeDepths();
             map.AssignTypes(trial, rng, withNpcRoom, objectiveRooms);
 
+            foreach (var r in map.Rooms.Values)
+            {
+                r.Template = rng.Next(RoomLayout.Templates.Length);
+                r.Mirror = rng.Next(2) == 0;
+                r.Layout = RoomLayout.Build(r.Template, r.Mirror, r.Links.Keys);
+                if (r.Type == RoomType.Event) r.Event = EventDb.All[rng.Next(EventDb.All.Count)];
+            }
+            map.Entrance.Visited = true;
+            map.Entrance.Cleared = true;
+            return map;
+        }
+
+        // The playtest's fixed map. Two ways from the entrance to the shrine: the quick one through a single fight,
+        // or the long one past an event and a harder fight to a cache. From the shrine, the boss one way and the
+        // way out the other.
+        public static TrialMap Short(Random rng)
+        {
+            var map = new TrialMap();
+            Room Add(int x, int y, RoomType type, Room from = null, Dir dir = Dir.East)
+            {
+                var room = new Room { Id = map.Rooms.Count, Grid = new Point(x, y), Type = type };
+                map.Rooms[room.Grid] = room;
+                if (from != null) Link(from, room, dir);
+                return room;
+            }
+            map.Entrance = Add(0, 0, RoomType.Entrance);
+            var fight = Add(1, 0, RoomType.Normal, map.Entrance);
+            var shrine = Add(2, 0, RoomType.Rest, fight);
+            Add(3, 0, RoomType.Objective, shrine);
+            Add(2, 1, RoomType.Extraction, shrine, Dir.South);
+            var side = Add(0, -1, RoomType.Event, map.Entrance, Dir.North);
+            var hard = Add(1, -1, RoomType.Normal, side);
+            var cache = Add(2, -1, RoomType.Treasure, hard);
+            Link(cache, shrine, Dir.South);
+            map.ComputeDepths();
             foreach (var r in map.Rooms.Values)
             {
                 r.Template = rng.Next(RoomLayout.Templates.Length);

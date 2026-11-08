@@ -11,6 +11,7 @@ namespace SERAAC.Core
     //   wait <frames>          press <Key> [times]      hold <Key> <frames>
     //   shot <name>            quit
     //   click <x> <y>          left click at a 1280x720 layout position
+    //   spot                   left click the middle of the tutorial's spotlight
     public sealed class ScriptRunner
     {
         private readonly Queue<string[]> _commands = new();
@@ -83,6 +84,13 @@ namespace SERAAC.Core
                     Input.InjectedClick = new Microsoft.Xna.Framework.Vector2(
                         float.Parse(c[1], CultureInfo.InvariantCulture), float.Parse(c[2], CultureInfo.InvariantCulture));
                     _releaseTap = true;
+                    break;
+                case "spot":
+                    if (UI.Spotlight.LastHole is { } hole)
+                    {
+                        Input.InjectedClick = hole.Center.ToVector2();
+                        _releaseTap = true;
+                    }
                     break;
                 case "shot": PendingShot = c[1]; break;
                 case "quit": Done = true; break;

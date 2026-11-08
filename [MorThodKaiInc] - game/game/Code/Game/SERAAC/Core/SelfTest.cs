@@ -681,14 +681,14 @@ namespace SERAAC.Core
 
             // The boss alone, at full HP (like Playtest > One fight > Wyvern): separates the boss from attrition.
             Say("\n== Wyvern fight at full HP, fresh default party (Playtest one fight), 400 fights per depth ==");
-            foreach (int depth in new[] { 3, 6 })
+            foreach (var (depth, escorts) in new[] { (3, 2), (6, 2), (3, 1) })
             {
                 var academy = WorldDb.AbandonedCity.Trials[1];
                 int won = 0, turns = 0, windUps = 0, interrupts = 0, enraged = 0;
                 for (int seed = 0; seed < 400; seed++)
                 {
                     var run = TrialRun.Start(Profile.CreateNew(), WorldDb.AbandonedCity, academy, seed, ObjectiveDb.SlayWyvern);
-                    var room = new Room { Type = RoomType.Objective, Depth = depth, Encounter = new() { EnemyDb.Gnawer, EnemyDb.Gnawer, EnemyDb.Wyvern } };
+                    var room = new Room { Type = RoomType.Objective, Depth = depth, Encounter = Enumerable.Repeat(EnemyDb.Gnawer, escorts).Append(EnemyDb.Wyvern).ToList() };
                     var battle = new Battle(run.BuildPartyCombatants(), run.BuildEnemyCombatants(room), run.Rng);
                     var boss = battle.Enemies.First(e => e?.Enemy == EnemyDb.Wyvern);
                     int t = 0;
@@ -708,7 +708,7 @@ namespace SERAAC.Core
                     if (boss.Enraged) enraged++;
                     turns += t;
                 }
-                Say($"  depth {depth}: won {won * 100 / 400}%   avg turns {turns / 400.0:0.0}   wind-ups/fight {windUps / 400.0:0.0}" +
+                Say($"  depth {depth}, {escorts} escorts: won {won * 100 / 400}%   avg turns {turns / 400.0:0.0}   wind-ups/fight {windUps / 400.0:0.0}" +
                     $"   interrupted {(windUps > 0 ? interrupts * 100 / windUps : 0)}%   reached phase 2 {enraged * 100 / 400}%");
             }
 

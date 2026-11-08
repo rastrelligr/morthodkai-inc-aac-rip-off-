@@ -219,6 +219,41 @@ namespace SERAAC.Story
             return t;
         }
 
+        // The first fight of the trial teaches as it goes, with spotlights instead of a scene (UI/Coach.cs).
+        public static CombatTutorial FirstFight()
+        {
+            var t = new CombatTutorial { Banner = null, Objective = null };
+            t.Steps.Add(new()
+            {
+                Instruction = "Choose for the rest of the squad. The turn plays once everyone has chosen.",
+                Hints = new()
+                {
+                    new() { Spot = CombatTutorial.Spot.Pick, Text = "Everything this fighter can do is here.\nHover to read it, click to choose." },
+                    new() { Spot = CombatTutorial.Spot.Enemies, Text = "Now click who it's aimed at." },
+                    new() { Spot = CombatTutorial.Spot.Ethergy, Nth = 1, Text = "These pips are Ethergy. Stronger skills spend it.\nEveryone gets 1 back each turn." },
+                },
+            });
+            t.Steps.Add(new()
+            {
+                Hints = new()
+                {
+                    new() { Spot = CombatTutorial.Spot.TurnOrder, Text = "This is the turn order. Left acts first." },
+                    new() { Spot = CombatTutorial.Spot.Ranks, Text = "The squares show where a skill works from,\nand which enemies it can reach." },
+                    new() { Spot = CombatTutorial.Spot.Specials, Text = "Always available. Guard halves a hit,\nFocus restores 2 Ethergy." },
+                },
+            });
+            return t;
+        }
+
+        // The boss teaches the one thing the first fight can't: answering a wind-up.
+        public static CombatTutorial WyvernCoaching()
+        {
+            var t = new CombatTutorial { Banner = null, Objective = null };
+            t.OnWindUp.Add(new() { Spot = CombatTutorial.Spot.WindUp, Text = "Next turn this hits the whole squad." });
+            t.OnWindUp.Add(new() { Spot = CombatTutorial.Spot.Guard, Text = "Guard goes before anything else and halves the hit.\nOr attack, and hope it falls first. Your call." });
+            return t;
+        }
+
         // ------------------------------------------------------------------ 3. The Airlift platform
 
         public static List<VnLine> AirliftArrive() => new()

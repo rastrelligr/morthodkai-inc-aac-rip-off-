@@ -90,6 +90,115 @@ namespace SERAAC.Screens
 
         private bool _storyEnding;
 
+        // The playtest's map explains itself as the player finds things (UI/Coach.cs), and the squad talks at a few
+        // moments (Story/SquadTalk.cs). Nothing says which door to take. If the first attempt failed, what only needs
+        // explaining once is left out, and scenes don't repeat.
+        private CoachTips _tips;
+        private List<(string flag, Func<bool> when, Func<List<VnLine>> lines)> _scenes;
+        private const string CoachedFlag = "coach_trial", CoachedFightFlag = "coach_fight", CoachedBossFlag = "coach_boss";
+
+        private Rectangle TileRect(Point t) => new(RoomOrigin.X + t.X * TileSize, RoomOrigin.Y + t.Y * TileSize, TileSize, TileSize);
+
+        private Rectangle? AroundPack()
+        {
+            var m = Room.Pack?.Members.FirstOrDefault();
+            if (m == null) return null;
+            var c = ToScreen(m.Pos);
+            return new Rectangle((int)c.X - 44, (int)c.Y - 60, 88, 88);
+        }
+
+        private LootPickup NextPickup => Room.Pickups.FirstOrDefault(p => !p.Collected);
+
+        private Rectangle? AroundPickup()
+        {
+            if (NextPickup == null) return null;
+            var c = ToScreen(NextPickup.Tile * TileSize);
+            return new Rectangle((int)c.X - 26, (int)c.Y - 26, 52, 52);
+        }
+
+        private CoachStep FeatureTip(RoomType type, string text) => new()
+        {
+            Soft = true,
+            Text = text,
+            Target = () => TileRect(Room.Layout.Feature),
+            When = () => Room.Type == type && !Room.FeatureUsed,
+            Done = () => Room.Type != type || Room.FeatureUsed || NearFeature(),   // close up, the room's own prompt takes over
+        };
+
+        private CoachTips BuildTips()
+        {
+            bool first = !Profile.StoryFlags.Contains(CoachedFlag);
+            Profile.StoryFlags.Add(CoachedFlag);
+            ProfileStore.Save(Profile);
+
+            var tips = new List<CoachStep>();
+            if (first)
+            {
+                tips.Add(new() { Target = () => new Rectangle(548, 12, 344, 80), Text = "Your goal for this run.\nThe way out stays sealed until it's done." });
+                tips.Add(new() { Target = () => Ui.Bounds("minimap"), When = () => Ui.Bounds("minimap") != null, Text = "* is the Wyvern, X is the way out.\nHow you get there is up to you." });
+                tips.Add(new() { Target = AroundPack, When = () => Room.Pack != null && Room.HasEnemies, Text = "Infected hunt you once they spot you.\nTouch one and the fight starts. Or run." });
+                tips.Add(new()
+                {
+                    Soft = true,
+                    Text = "Walk over loot to take it.\nIt's only yours if you make it out.",
+                    Target = AroundPickup,
+                    When = () => NextPickup != null,
+                    Done = () => NextPickup == null,
+                });
+                tips.Add(FeatureTip(RoomType.Rest, "A shrine. Click it to heal the squad.\nEach one works once."));
+                tips.Add(FeatureTip(RoomType.Treasure, "A cache. Click it to open."));
+            }
+            tips.Add(new()
+            {
+                Soft = true,
+                Text = "Extraction is open. Head for the X.",
+                Target = () => Ui.Bounds("minimap"),
+                When = () => _run.ObjectiveCompleted && Room.Type != RoomType.Extraction,
+                Done = () => Room.Type == RoomType.Extraction,
+            });
+            tips.Add(new()
+            {
+                Soft = true,
+                Text = "Click to leave with your loot,\nor keep looking around.",
+                Target = () => TileRect(Room.Layout.Feature),
+                When = () => Room.Type == RoomType.Extraction && _run.CanExtract,
+                Done = () => _modal == Modal.Extract || Room.Type != RoomType.Extraction,
+            });
+            return new CoachTips(tips);
+        }
+
+        private bool PlayScene()
+        {
+            foreach (var (flag, when, lines) in _scenes ?? new())
+            {
+                if (Story.Squad.Flag(flag) || !when()) continue;
+                Story.Squad.SetFlag(flag);
+                Screens.PushInstant(new StoryScreen(lines()));
+                return true;
+            }
+            return false;
+        }
+
+        // The first fight of the route teaches the basics; the boss teaches how to answer a wind-up.
+        private CombatTutorial CoachingFor(List<Combatant> enemies)
+        {
+            if (!_run.ShortRoute) return null;
+            bool Once(string flag)
+            {
+                if (Profile.StoryFlags.Contains(flag)) return false;
+                Profile.StoryFlags.Add(flag);
+                ProfileStore.Save(Profile);
+                return true;
+            }
+            var tutorial = Once(CoachedFightFlag) ? Story.StoryScripts.FirstFight() : null;
+            if (enemies.Any(e => e.Enemy == EnemyDb.Wyvern) && Once(CoachedBossFlag))
+            {
+                tutorial ??= new CombatTutorial { Banner = null, Objective = null };
+                tutorial.OnWindUp.AddRange(Story.StoryScripts.WyvernCoaching().OnWindUp);
+            }
+            return tutorial;
+        }
+
         public override void OnResume()
         {
             if (!_storyEnding) return;
@@ -101,6 +210,17 @@ namespace SERAAC.Screens
         {
             PlaceAt(RoomLayout.EntryTile(Dir.South), Dir.South);
             ShowBanner($"{_run.Trial.Name}", 2.5f);
+            if (_run.ShortRoute)
+            {
+                _tips = BuildTips();
+                _scenes = new()
+                {
+                    ("vn_arrive", () => true, Story.SquadTalk.TrialArrive),
+                    ("vn_first_win", () => Room.Type == RoomType.Normal && Room.Cleared, Story.SquadTalk.FirstWin),
+                    ("vn_shrine", () => Room.Type == RoomType.Rest && Room.FeatureUsed, Story.SquadTalk.ShrineTalk),
+                    ("vn_boss", () => Room.Type == RoomType.Objective && !_run.ObjectiveCompleted, Story.SquadTalk.BossRoom),
+                };
+            }
             if (_startIn != null && _startIn != _run.Current && _startIn.Links.Count > 0)
             {
                 // Enter through one of its doors, like walking in (its pack spawns away from that door).
@@ -171,6 +291,12 @@ namespace SERAAC.Screens
             {
                 UpdateModal();
                 return;
+            }
+
+            if (_roomFade <= 0)   // a scene over a half-faded room would freeze the fade
+            {
+                if (PlayScene()) return;
+                if (_tips?.Update() == true) return;
             }
 
             int member = Ui.ClickedIndex("pmember");
@@ -554,7 +680,7 @@ namespace SERAAC.Screens
             var room = _pendingRoom ?? Room;
             _pendingRoom = null;
             bool eventFight = _pendingIsEventFight;
-            Screens.Push(new CombatScreen(_run, enemies, battle => OnCombatFinished(room, battle, eventFight)));
+            Screens.Push(new CombatScreen(_run, enemies, battle => OnCombatFinished(room, battle, eventFight)) { Tutorial = CoachingFor(enemies) });
         }
 
         private void OnCombatFinished(Room room, Battle battle, bool eventFight)
@@ -881,6 +1007,7 @@ namespace SERAAC.Screens
             }
 
             DrawModal(sb, t);
+            if (Screens.Top == this && _modal == Modal.None && _roomFade <= 0 && _pendingEnemies == null) _tips?.Draw(sb);
         }
 
         private void DrawTopBar(SpriteBatch sb)
